@@ -2,7 +2,7 @@
 // Loads the MP3 track and loops it through the provided Web Audio destination
 // node (musicGain), keeping it fully separate from SFX.
 
-const MUSIC_SRC = new URL('./Veludo No Copo.mp3', import.meta.url).href;
+import MUSIC_SRC from './Veludo No Copo.mp3?url';
 
 export class BackgroundMusic {
   private ctx: AudioContext;
