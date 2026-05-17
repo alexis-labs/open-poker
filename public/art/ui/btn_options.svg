@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" width="220" height="64">
   <defs>
-    <linearGradient id="bbtn_options" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f29033"/>
-      <stop offset="1" stop-color="#c25f1a"/>
+    <linearGradient id="btn_options-btn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffbd65"/>
+      <stop offset="0.52" stop-color="#c45a19"/>
+      <stop offset="1" stop-color="#5b1d09"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="212" height="56" rx="12" ry="12" fill="url(#bbtn_options)" stroke="#000" stroke-width="3"/>
-  <rect x="9" y="9" width="202" height="46" rx="9" ry="9" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-  <text x="110" y="40" font-size="18" font-family="'Silkscreen', monospace" font-weight="700"
-        text-anchor="middle" fill="#fff">OPTIONS</text>
-  <text x="110" y="58" font-size="6" text-anchor="middle" fill="#000" font-family="monospace">ui/btn_options.svg</text>
+  <rect x="4" y="5" width="212" height="55" rx="12" fill="#120805"/>
+  <rect x="7" y="4" width="206" height="54" rx="10" fill="url(#btn_options-btn)" stroke="#f2cc72" stroke-width="2.2"/>
+  <path d="M18 16 C60 7 160 7 202 16" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="4" stroke-linecap="round"/>
+  <rect x="13" y="11" width="194" height="40" rx="7" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1.2"/>
+  <text x="110" y="39" font-size="18" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900" text-anchor="middle" fill="#fff8df" stroke="#2a1106" stroke-width="0.8" paint-order="stroke fill">OPTIONS</text>
 </svg>

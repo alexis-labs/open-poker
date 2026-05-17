@@ -1,17 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
-    <radialGradient id="g" cx="0.35" cy="0.3" r="0.7">
-      <stop offset="0" stop-color="#f2c14a"/>
-      <stop offset="0.55" stop-color="#c88a1a"/>
-      <stop offset="1" stop-color="#6b3a08"/>
+    <radialGradient id="small-chip" cx="0.35" cy="0.28" r="0.76">
+      <stop offset="0" stop-color="#fff3a8"/>
+      <stop offset="0.55" stop-color="#d49b22"/>
+      <stop offset="1" stop-color="#7a3d07"/>
     </radialGradient>
+    <linearGradient id="small-shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
-  <circle cx="64" cy="64" r="58" fill="url(#g)" stroke="#000" stroke-width="6"/>
-  <circle cx="64" cy="64" r="50" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
-  <text x="64" y="60" font-size="13" font-family="'Silkscreen', monospace" font-weight="700"
-        text-anchor="middle" fill="#3a1a08">SMALL</text>
-  <text x="64" y="78" font-size="13" font-family="'Silkscreen', monospace" font-weight="700"
-        text-anchor="middle" fill="#3a1a08">BLIND</text>
-  <text x="64" y="124" font-size="6" text-anchor="middle" fill="#000" font-family="monospace">blinds/small.svg</text>
+  <circle cx="64" cy="64" r="59" fill="#130a07"/>
+  <circle cx="64" cy="64" r="54" fill="url(#small-chip)" stroke="#f2cf78" stroke-width="3"/>
+  <g>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(0 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(30 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(60 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(90 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(120 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(150 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(180 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(210 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(240 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(270 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(300 64 64)"/>
+    <rect x="59" y="7" width="10" height="20" rx="2" fill="#f8f1da" transform="rotate(330 64 64)"/>
+  </g>
+  <circle cx="64" cy="64" r="38" fill="#f9e7b2" stroke="#2b1605" stroke-width="3"/>
+  <circle cx="64" cy="64" r="29" fill="none" stroke="#8a5c1e" stroke-width="2" stroke-dasharray="3 5"/>
+  <path d="M29 34 C47 21 81 20 101 38" fill="none" stroke="url(#small-shine)" stroke-width="6" stroke-linecap="round"/>
+  <text x="64" y="59" font-size="14" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900" text-anchor="middle" fill="#2b1605">SMALL</text>
+  <text x="64" y="77" font-size="14" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900" text-anchor="middle" fill="#2b1605">BLIND</text>
 </svg>

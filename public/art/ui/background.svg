@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <radialGradient id="felt" cx="0.5" cy="0.5" r="0.8">
-      <stop offset="0" stop-color="#2d6b46"/>
-      <stop offset="0.6" stop-color="#1a3a2a"/>
-      <stop offset="1" stop-color="#0d1a14"/>
+    <radialGradient id="white-table" cx="0.5" cy="0.45" r="0.86">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.68" stop-color="#fbf8f0"/>
+      <stop offset="1" stop-color="#eee3cd"/>
     </radialGradient>
-    <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-      <circle cx="20" cy="20" r="1.2" fill="rgba(255,255,255,0.04)"/>
+    <pattern id="paper-grain" x="0" y="0" width="42" height="42" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="13" r="0.9" fill="#bfa56a" fill-opacity="0.08"/>
+      <circle cx="31" cy="29" r="0.8" fill="#ffffff" fill-opacity="0.72"/>
+      <path d="M0 41 H42 M41 0 V42" stroke="#d8c79e" stroke-opacity="0.08" stroke-width="1"/>
     </pattern>
   </defs>
-  <rect width="100%" height="100%" fill="url(#felt)"/>
-  <rect width="100%" height="100%" fill="url(#dots)"/>
-  <text x="960" y="1060" font-size="14" text-anchor="middle" fill="#fff" opacity="0.4" font-family="monospace">ui/background.svg</text>
+  <rect width="100%" height="100%" fill="url(#white-table)"/>
+  <rect width="100%" height="100%" fill="url(#paper-grain)"/>
+  <ellipse cx="960" cy="540" rx="660" ry="340" fill="none" stroke="#d8c79e" stroke-opacity="0.16" stroke-width="6"/>
 </svg>

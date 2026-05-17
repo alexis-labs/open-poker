@@ -1,15 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 360" width="256" height="360">
-  <!-- DUMMY ART — replace this file with your own (same name, .svg or .png) -->
-  <rect x="6" y="6" width="244" height="348" rx="22" ry="22" fill="#fdfdfd" stroke="#222" stroke-width="4"/>
-  <g font-family="'Trebuchet MS', sans-serif" font-weight="700" fill="#e23b3b">
-    <text x="22" y="70" font-size="56" text-anchor="start">K</text>
-    <text x="22" y="118" font-size="48" text-anchor="start" font-family="serif">♥</text>
-    <g transform="translate(234 330) rotate(180)">
-      <text x="0" y="0" font-size="56">K</text>
-      <text x="0" y="48" font-size="48" font-family="serif">♥</text>
-    </g>
-    <text x="128" y="220" font-size="160" font-family="serif" text-anchor="middle">♥</text>
+  <defs>
+    <linearGradient id="card-k-hearts-paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.72" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f6f1e6"/>
+    </linearGradient>
+    <linearGradient id="card-k-hearts-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5d98c"/>
+      <stop offset="0.5" stop-color="#c99a45"/>
+      <stop offset="1" stop-color="#f3e0aa"/>
+    </linearGradient>
+    <filter id="card-k-hearts-shadow" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#000000" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <rect x="7" y="8" width="242" height="345" rx="24" fill="#15100c" opacity="0.26" filter="url(#card-k-hearts-shadow)"/>
+  <rect x="8" y="7" width="240" height="346" rx="24" fill="url(#card-k-hearts-paper)" stroke="#1c1712" stroke-width="2.6"/>
+  <rect x="16" y="15" width="224" height="330" rx="18" fill="none" stroke="url(#card-k-hearts-gold)" stroke-width="2"/>
+  <rect x="24" y="23" width="208" height="314" rx="13" fill="none" stroke="#d8c89e" stroke-opacity="0.34" stroke-width="1"/>
+  <g>
+    <text transform="translate(128 188)" x="0" y="0" font-size="150" text-anchor="middle" dominant-baseline="middle" fill="#b4142a" stroke="#5f0713" stroke-width="0.7" paint-order="stroke fill" font-family="Georgia, 'Times New Roman', serif" font-weight="700">&#9829;</text>
   </g>
-  <text x="128" y="350" font-size="10" text-anchor="middle" fill="#888" font-family="monospace">K_hearts.svg</text>
+    <g>
+      <text transform="translate(33 47)" x="0" y="0" font-size="45" text-anchor="middle" dominant-baseline="middle" fill="#b4142a" stroke="#fff7df" stroke-width="1.1" paint-order="stroke fill" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900">K</text>
+      <text transform="translate(33 84)" x="0" y="0" font-size="30" text-anchor="middle" dominant-baseline="middle" fill="#b4142a" stroke="#5f0713" stroke-width="0.7" paint-order="stroke fill" font-family="Georgia, 'Times New Roman', serif" font-weight="700">&#9829;</text>
+    </g>
+    <g transform="translate(256 360) rotate(180)">
+      <text transform="translate(33 47)" x="0" y="0" font-size="45" text-anchor="middle" dominant-baseline="middle" fill="#b4142a" stroke="#fff7df" stroke-width="1.1" paint-order="stroke fill" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900">K</text>
+      <text transform="translate(33 84)" x="0" y="0" font-size="30" text-anchor="middle" dominant-baseline="middle" fill="#b4142a" stroke="#5f0713" stroke-width="0.7" paint-order="stroke fill" font-family="Georgia, 'Times New Roman', serif" font-weight="700">&#9829;</text>
+    </g>
 </svg>

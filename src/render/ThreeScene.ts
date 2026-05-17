@@ -1,5 +1,5 @@
 // Three.js scene: orthographic-ish perspective camera (low FOV → 2.5D look),
-// soft lights, animated felt-table shader background, and a hand layout helper.
+// soft lights, simple table background, and a hand layout helper.
 
 import * as THREE from 'three';
 import gsap from 'gsap';
@@ -28,9 +28,9 @@ function buildBackground(): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uColorA: { value: new THREE.Color('#0d1a14') },
-      uColorB: { value: new THREE.Color('#1a3a2a') },
-      uColorC: { value: new THREE.Color('#2d6b46') },
+      uColorA: { value: new THREE.Color('#ffffff') },
+      uColorB: { value: new THREE.Color('#f6f1e8') },
+      uColorC: { value: new THREE.Color('#e4d4aa') },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -47,7 +47,7 @@ function buildBackground(): THREE.Mesh {
       uniform vec3 uColorC;
       varying vec2 vUv;
 
-      // simple value-noise wavy field
+      // Soft value-noise so the white field has a little table texture.
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
         vec2 i = floor(p);
@@ -68,12 +68,9 @@ function buildBackground(): THREE.Mesh {
         n += 0.5 * noise(uv * 6.0 - uTime * 0.05);
         n *= 0.4;
 
-        // base gradient (centre brighter)
-        vec3 col = mix(uColorB, uColorA, smoothstep(0.0, 1.4, r));
-        // subtle green moving streaks
-        col += uColorC * 0.18 * sin(n * 6.2831 + uTime * 0.5);
-        // vignette
-        col *= 1.0 - smoothstep(0.7, 1.4, r) * 0.6;
+        vec3 col = mix(uColorA, uColorB, smoothstep(0.0, 1.35, r));
+        col = mix(col, uColorC, n * 0.055);
+        col *= 1.0 - smoothstep(0.82, 1.45, r) * 0.08;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -88,14 +85,14 @@ function buildBackground(): THREE.Mesh {
 }
 
 /**
- * Tries to load /art/ui/background.{png,webp,jpg,svg} and assigns it to
+ * Tries to load /art/ui/background.{png,webp,jpg} and assigns it to
  * scene.background (Three.js native path — correct colorspace + no blending
  * artefacts). When a file is found the procedural bg mesh is hidden.
  * Falls back silently if no file exists.
  */
 function buildImageBackground(scene: THREE.Scene, procBg: THREE.Mesh): void {
   const loader = new THREE.TextureLoader();
-  const exts = ['png', 'webp', 'jpg', 'svg'];
+  const exts = ['png', 'webp', 'jpg'];
   let i = 0;
   const tryNext = () => {
     if (i >= exts.length) return;
@@ -105,7 +102,7 @@ function buildImageBackground(scene: THREE.Scene, procBg: THREE.Mesh): void {
       (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         scene.background = tex;
-        procBg.visible = false; // hide procedural shader bg
+        procBg.visible = false; // hide fallback shader bg
       },
       undefined,
       tryNext, // 404 / error → try next extension

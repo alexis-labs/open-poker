@@ -356,27 +356,48 @@ async function playSelected() {
 
   const playSlots = layoutPlay(playedCards.length);
   audio.play('whoosh');
+  const worldPos = new THREE.Vector3();
   playedCards.forEach((card, i) => {
     const obj = objects.get(card.id);
     if (!obj) return;
     obj.userData.keepAlive = true;
+
+    // Preserve world position across the reparent so the card doesn't snap
+    // upward (handGroup y=-0.9 vs playGroup y=0.4) before the tween starts.
+    obj.getWorldPosition(worldPos);
     sceneHandle.handGroup.remove(obj);
     sceneHandle.playGroup.add(obj);
+    sceneHandle.playGroup.worldToLocal(worldPos);
+    obj.position.copy(worldPos);
+
+    // Drop the selection glow (moveTo already animates to the unselected pose,
+    // so we only need the glow fade-out here — no conflicting y/z tween).
     obj.setSelected(false);
-    obj.moveTo(playSlots[i], 0.4, i * 0.06);
+    obj.moveTo(playSlots[i], 0.55, i * 0.07);
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 650));
 
+  // Suppress the end-of-run overlay *before* applying the play, because
+  // state.playSelected() synchronously notifies subscribers (which call
+  // updateHud) — if the phase flips to game-over/win during that callback
+  // and the flag isn't set yet, the overlay would briefly appear and the
+  // win/lose sound would fire twice (once here, once after the scoring
+  // animation finishes).
+  suppressEndOverlay = true;
   const br = state.playSelected();
-  if (!br) return;
+  if (!br) {
+    suppressEndOverlay = false;
+    return;
+  }
 
-  // If this play ended the run, hide the overlay until the score animation
-  // finishes so the player sees the chips x mult tally first.
+  // If this play ended the run, keep the overlay hidden until the score
+  // animation finishes so the player sees the chips x mult tally first.
   const endsRun = state.phase === 'game-over' || state.phase === 'win';
   if (endsRun) {
-    suppressEndOverlay = true;
     overlay.classList.add('hidden');
+  } else {
+    suppressEndOverlay = false;
   }
 
   showScorePopup(br);

@@ -1,16 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 176" width="128" height="176">
   <defs>
-    <linearGradient id="gjoker_01" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="hsl(10, 70%, 60%)"/>
-      <stop offset="1" stop-color="hsl(10, 80%, 25%)"/>
+    <linearGradient id="joker_01-joker" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="hsl(10, 84%, 64%)"/>
+      <stop offset="0.55" stop-color="hsl(10, 74%, 34%)"/>
+      <stop offset="1" stop-color="hsl(10, 70%, 17%)"/>
+    </linearGradient>
+    <linearGradient id="joker_01-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1ac"/>
+      <stop offset="1" stop-color="#a56a19"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="120" height="168" rx="10" ry="10" fill="url(#gjoker_01)" stroke="#000" stroke-width="4"/>
-  <rect x="10" y="10" width="108" height="156" rx="6" ry="6" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
-  <circle cx="64" cy="76" r="34" fill="rgba(255,255,255,0.18)" stroke="#000" stroke-width="2"/>
-  <text x="64" y="86" font-size="40" text-anchor="middle" fill="#fff" font-family="serif">?</text>
-  <text x="64" y="135" font-size="11" text-anchor="middle" fill="#fff"
-        font-family="'Silkscreen', monospace" font-weight="700">JOKER</text>
-  <text x="64" y="168" font-size="7" text-anchor="middle" fill="#000" font-family="monospace">jokers/joker_01.svg</text>
+  <rect x="5" y="5" width="118" height="166" rx="13" fill="#12090a"/>
+  <rect x="8" y="8" width="112" height="160" rx="11" fill="url(#joker_01-joker)" stroke="url(#joker_01-gold)" stroke-width="3"/>
+  <rect x="16" y="16" width="96" height="144" rx="8" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="1.4"/>
+  <circle cx="64" cy="72" r="36" fill="#fff8df" fill-opacity="0.22" stroke="#fff1ac" stroke-opacity="0.76" stroke-width="2"/>
+  <path d="M34 72 C44 49 58 72 64 48 C70 72 84 49 94 72" fill="none" stroke="#fff1ac" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="34" cy="72" r="5" fill="#fff8df"/>
+  <circle cx="64" cy="48" r="5" fill="#fff8df"/>
+  <circle cx="94" cy="72" r="5" fill="#fff8df"/>
+  <text x="64" y="97" font-size="38" text-anchor="middle" fill="#fff8df" font-family="Georgia, 'Times New Roman', serif" font-weight="900">J</text>
+  <text x="64" y="137" font-size="11" text-anchor="middle" fill="#fff8df" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="900">JOKER</text>
 </svg>
