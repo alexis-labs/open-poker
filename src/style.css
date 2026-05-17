@@ -396,9 +396,8 @@ canvas { display: block; }
   text-shadow: 0 1px 0 #000;
 }
 .hand-counter {
-  bottom: 170px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 96px;
+  right: 70px;
 }
 .deck-counter {
   bottom: 60px;
