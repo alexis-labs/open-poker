@@ -31,6 +31,7 @@ export function attachInteraction(deps: InteractionDeps): () => void {
   let pressNdc = new THREE.Vector2();
   let dragging: CardObject | null = null;
   let dragOriginX = 0;
+  let dragOffsetX = 0;
   const DRAG_THRESHOLD = 0.012; // NDC distance before we count as drag
 
   function setNdc(ev: PointerEvent) {
@@ -49,6 +50,18 @@ export function attachInteraction(deps: InteractionDeps): () => void {
     return (hits[0].object.userData.cardObject as CardObject) ?? null;
   }
 
+  // Project the current cursor (ndc) onto a vertical plane at the given world Z.
+  // Using a Z-facing plane is far more stable than a Y-facing one because the camera
+  // looks down -Z, so the ray hits the plane nearly perpendicularly and X tracks the
+  // cursor closely instead of diverging on shallow angles.
+  function cursorWorldXAtZ(worldZ: number): number | null {
+    ray.setFromCamera(ndc, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -worldZ);
+    const hit = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(plane, hit)) return null;
+    return hit.x;
+  }
+
   function onMove(ev: PointerEvent) {
     setNdc(ev);
 
@@ -59,6 +72,14 @@ export function attachInteraction(deps: InteractionDeps): () => void {
       if (dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD) {
         dragging = pressed;
         dragOriginX = dragging.position.x;
+        // Use the card's *current* world Z (pre-lift) so the initial offset matches what the user clicked on.
+        const cardWorldZ = handGroup.position.z + dragging.position.z;
+        const cursorX = cursorWorldXAtZ(cardWorldZ);
+        if (cursorX !== null) {
+          dragOffsetX = cursorX - (dragging.position.x + handGroup.position.x);
+        } else {
+          dragOffsetX = 0;
+        }
         audio.play('flip', { volume: 0.25 });
         // lift the card visually
         gsap.to(dragging.position, { y: dragging.baseY + 0.6, z: dragging.baseZ + 0.4, duration: 0.15 });
@@ -66,17 +87,11 @@ export function attachInteraction(deps: InteractionDeps): () => void {
     }
 
     if (dragging) {
-      // Project pointer onto y=handGroup.position.y plane
-      ray.setFromCamera(ndc, camera);
-      const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -handGroup.position.z);
-      const hit = new THREE.Vector3();
-      // use a horizontal plane at the hand y
-      const hPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -handGroup.position.y);
-      if (ray.ray.intersectPlane(hPlane, hit)) {
-        dragging.position.x = hit.x - handGroup.position.x;
-      } else {
-        ray.ray.intersectPlane(plane, hit);
-        dragging.position.x = hit.x - handGroup.position.x;
+      // Project onto a Z-plane at the lifted card depth. This is stable and matches the cursor 1:1.
+      const liftedZ = handGroup.position.z + dragging.baseZ + 0.4;
+      const cursorX = cursorWorldXAtZ(liftedZ);
+      if (cursorX !== null) {
+        dragging.position.x = cursorX - handGroup.position.x - dragOffsetX;
       }
       // live reorder
       reorderByX();

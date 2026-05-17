@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import gsap from 'gsap';
-import { CARD_W, CARD_H, CARD_T } from './CardObject';
+import { CARD_W, CARD_H, CARD_T, tickCardGlow } from './CardObject';
 import { getBackTexture } from './cardTextures';
 import { ParticleSystem } from './Particles';
 
@@ -207,6 +207,7 @@ export function createScene(container: HTMLElement): SceneHandle {
     const dt = clock.getDelta();
     const t = clock.elapsedTime;
     (bg.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+    tickCardGlow(dt);
     particles.update(dt);
     renderer.render(scene, camera);
     rafId = requestAnimationFrame(tick);
