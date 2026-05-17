@@ -4,6 +4,8 @@ Open Poker is a browser-based poker roguelike prototype built with Vite, TypeScr
 
 The goal of this repository is to make the project easy to run, understand, and extend with help from the community.
 
+![Open Poker gameplay example](public/examples/gameplay-example.png)
+
 ## Current Features
 
 - Seeded run state with antes, blinds, hands, discards, deck, and score targets.
