@@ -1,6 +1,6 @@
-// Bootstrap: glue GameState ↔ Three.js scene ↔ Interaction ↔ HUD.
+// Bootstrap: glue GameState -> Three.js scene -> Interaction -> HUD.
 // Renders cards as CardObjects, animates them on every state change, and
-// shows an animated Chips × Mult readout when a hand is scored.
+// shows an animated Chips x Mult readout when a hand is scored.
 
 import './style.css';
 import * as THREE from 'three';
@@ -8,14 +8,31 @@ import gsap from 'gsap';
 
 import { GameState } from './game/gameState';
 import { evaluateHand } from './game/pokerEngine';
-import type { PlayingCard, ScoreBreakdown } from './game/types';
+import type { InputAction, PlayingCard, RunSnapshot, ScoreBreakdown } from './game/types';
 import { createScene, layoutHand, layoutPlay } from './render/ThreeScene';
 import { CardObject } from './render/CardObject';
 import { attachInteraction } from './render/Interaction';
 import { audio } from './audio/AudioManager';
+import { actionFromKeyboard, UI_ACTION_BINDINGS } from './input/actions';
+
+declare global {
+  interface Window {
+    __OPEN_POKER_TEST__?: {
+      snapshot: () => RunSnapshot;
+      loadSnapshot: (snapshot: RunSnapshot) => void;
+      selectFirst: (count?: number) => void;
+      play: () => void;
+      discard: () => void;
+      restart: () => void;
+      toggleDebug: () => void;
+    };
+  }
+}
 
 // ---------- DOM refs ----------
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const maybe = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
+
 const host = $('canvas-host');
 const blindName = $('blind-name');
 const blindBadge = $('blind-badge');
@@ -47,7 +64,9 @@ const popupTotal = $('popup-total');
 const overlay = $('overlay');
 const overlayTitle = $('overlay-title');
 const overlaySub = $('overlay-sub');
-const overlayRestart = $<HTMLButtonElement>('overlay-restart');
+const debugOverlay = maybe('debug-overlay');
+const debugContent = maybe('debug-content');
+const debugToggleBtn = maybe<HTMLButtonElement>('btn-debug');
 
 // ---------- Engine + Scene ----------
 const state = new GameState();
@@ -55,26 +74,25 @@ const sceneHandle = createScene(host);
 
 // CardObject pool keyed by card.id so visuals persist across state mutations.
 const objects = new Map<string, CardObject>();
+let debugVisible = false;
+let fpsEstimate = 0;
 
 function getOrCreateObject(card: PlayingCard): CardObject {
   let obj = objects.get(card.id);
   if (!obj) {
     obj = new CardObject(card);
     sceneHandle.handGroup.add(obj);
-    // Spawn from the right (deck position) and fly in.
-    obj.position.set(6, -2, 1);
-    obj.rotation.y = Math.PI; // start back-facing
+    obj.position.set(6, -2, 1); // spawn from the deck side and fly in
+    obj.rotation.y = Math.PI;   // start back-facing
     objects.set(card.id, obj);
-    // Deal sound with slight variation per card
     audio.play('deal', { volume: 0.28, detune: (Math.random() - 0.5) * 200, pitch: 0.95 + Math.random() * 0.1 });
-    // Flip face-up shortly after entering
     gsap.to(obj.rotation, { y: 0, duration: 0.5, delay: 0.05, ease: 'power3.out' });
   }
   return obj;
 }
 
 // Renderer-side ordering: we keep a manual list so drag-reorder works smoothly
-// without fighting GameState (which doesn't care about visual order).
+// without fighting GameState (which does not care about visual order).
 let handOrder: string[] = [];
 
 function syncHandOrder() {
@@ -101,7 +119,7 @@ function reflowHand(duration = 0.4) {
     obj.moveTo(slots[i], duration, i * 0.04);
   });
 
-  // Dispose objects no longer in the hand AND not protected mid-play.
+  // Dispose objects no longer in the hand and not protected mid-play.
   for (const [id, obj] of objects) {
     if (!cardsById[id] && !obj.userData.keepAlive) {
       sceneHandle.handGroup.remove(obj);
@@ -119,15 +137,16 @@ const MAX_CONSUMABLES = 2;
 function renderSlotPlaceholders() {
   jokerSlotsEl.innerHTML = '';
   for (let i = 0; i < MAX_JOKERS; i++) {
-    const s = document.createElement('div');
-    s.className = 'joker-slot';
-    jokerSlotsEl.appendChild(s);
+    const slot = document.createElement('div');
+    slot.className = 'joker-slot';
+    jokerSlotsEl.appendChild(slot);
   }
+
   consumableSlotsEl.innerHTML = '';
   for (let i = 0; i < MAX_CONSUMABLES; i++) {
-    const s = document.createElement('div');
-    s.className = 'consumable-slot';
-    consumableSlotsEl.appendChild(s);
+    const slot = document.createElement('div');
+    slot.className = 'consumable-slot';
+    consumableSlotsEl.appendChild(slot);
   }
 }
 renderSlotPlaceholders();
@@ -141,8 +160,9 @@ function updateHud() {
   const idx = state.blindIndex;
   blindName.textContent = BLIND_LABELS[idx];
   blindBadge.className = `blind-badge ${BLIND_KIND[idx]}`;
-  const inner = blindBadge.querySelector('span');
-  if (inner) inner.innerHTML = BLIND_BADGE_TEXT[idx];
+  const badgeText = blindBadge.querySelector('span');
+  if (badgeText) badgeText.innerHTML = BLIND_BADGE_TEXT[idx];
+
   blindTarget.textContent = state.target.toLocaleString();
   blindReward.textContent = BLIND_REWARD[idx];
   roundScoreEl.textContent = state.roundScore.toLocaleString();
@@ -154,27 +174,25 @@ function updateHud() {
   discardsLeftEl.textContent = `${state.discardsLeft}`;
   seedEl.textContent = String(state.config.seed);
 
-  // Floating counters (deck + hand)
   handCounterEl.textContent = `${state.hand.length}/${state.config.handSize}`;
   deckCounterEl.textContent = `${state.deck.length}/52`;
   sceneHandle.setDeckCount(state.deck.length);
 
-  // Joker / consumable counters (placeholders for now — no joker data yet)
+  // Placeholder counters for future systems.
   jokerCountEl.textContent = `0/${MAX_JOKERS}`;
   consumableCountEl.textContent = `0/${MAX_CONSUMABLES}`;
 
-  // Live hand preview
-  const sel = state.selectedCards();
-  if (sel.length === 0) {
-    handTypeEl.textContent = '—';
+  const selected = state.selectedCards();
+  if (selected.length === 0) {
+    handTypeEl.textContent = '-';
     chipsEl.textContent = '0';
     multEl.textContent = '0';
   } else {
-    const ev = evaluateHand(sel);
-    const lvl = state.handLevels[ev.type];
-    handTypeEl.textContent = `${ev.type} (lvl ${lvl.level})`;
-    chipsEl.textContent = `${lvl.chips}`;
-    multEl.textContent = `${lvl.mult}`;
+    const evaluated = evaluateHand(selected);
+    const level = state.handLevels[evaluated.type];
+    handTypeEl.textContent = `${evaluated.type} (lvl ${level.level})`;
+    chipsEl.textContent = `${level.chips}`;
+    multEl.textContent = `${level.mult}`;
   }
 
   btnPlay.disabled = !state.canPlay();
@@ -186,7 +204,7 @@ function updateHud() {
     overlayTitle.textContent = state.phase === 'win' ? 'You Win!' : 'Game Over';
     overlaySub.textContent = state.phase === 'win'
       ? `Ante ${state.ante - 1} cleared on seed ${state.config.seed}`
-      : `Couldn't beat ${BLIND_LABELS[idx]} — score ${state.roundScore.toLocaleString()} / ${state.target.toLocaleString()}`;
+      : `Could not beat ${BLIND_LABELS[idx]} - score ${state.roundScore.toLocaleString()} / ${state.target.toLocaleString()}`;
     if (wasHidden) {
       audio.play(state.phase === 'win' ? 'win' : 'lose');
       gsap.fromTo(
@@ -202,27 +220,24 @@ function updateHud() {
 
 // ---------- Scoring readout ----------
 function tweenNumber(el: HTMLElement, from: number, to: number, duration: number, tickName?: string) {
-  const obj = { v: from };
+  const value = { v: from };
   let lastSoundAt = from;
   const step = Math.max(1, Math.floor((to - from) / 18));
-  gsap.to(obj, {
+  gsap.to(value, {
     v: to,
     duration,
     ease: 'power2.out',
     onUpdate: () => {
-      const v = obj.v;
-      el.textContent = Math.round(v).toLocaleString();
-      if (tickName && v - lastSoundAt >= step) {
-        lastSoundAt = v;
+      const next = value.v;
+      el.textContent = Math.round(next).toLocaleString();
+      if (tickName && next - lastSoundAt >= step) {
+        lastSoundAt = next;
         audio.play(tickName, { volume: 0.12, detune: (Math.random() - 0.5) * 250 });
       }
     },
   });
 }
 
-/** Open the score popup with the base (hand-level) chips/mult; per-card
- *  increments are driven from the play loop so the readout ticks up with
- *  each scoring card pulse, giving the hand a satisfying "ka-ching" rhythm. */
 function showScorePopup(br: ScoreBreakdown) {
   popup.classList.remove('hidden');
   popupHand.textContent = `${br.hand.type}`;
@@ -230,7 +245,8 @@ function showScorePopup(br: ScoreBreakdown) {
   popupMult.textContent = Math.round(br.baseMult).toLocaleString();
   popupTotal.textContent = '0';
 
-  gsap.fromTo(popup,
+  gsap.fromTo(
+    popup,
     { scale: 0.5, opacity: 0 },
     { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)' },
   );
@@ -238,12 +254,10 @@ function showScorePopup(br: ScoreBreakdown) {
   audio.play('scorePop');
 }
 
-/** Final total reveal — fires once all per-card increments have finished. */
 function revealScoreTotal(br: ScoreBreakdown) {
   tweenNumber(popupTotal, 0, br.total, 0.8);
   gsap.fromTo(popupTotal, { scale: 0.6 }, { scale: 1.2, duration: 0.3, yoyo: true, repeat: 1, ease: 'power2.out' });
   audio.play('chaching');
-  // Scale shake intensity by how big the score is relative to the target.
   const intensity = Math.max(0.08, Math.min(0.6, (br.total / Math.max(1, state.target)) * 0.5));
   sceneHandle.shake(intensity, 0.45);
 
@@ -252,76 +266,136 @@ function revealScoreTotal(br: ScoreBreakdown) {
   });
 }
 
-/** Per-card chip / mult contribution — mirrors the math in `scoreHand`. */
-function cardScoreDeltas(c: PlayingCard): { chipsDelta: number; multDelta: number; multMul: number } {
-  if (c.enhancement === 'stone') return { chipsDelta: 50, multDelta: 0, multMul: 1 };
-  let chipsDelta = c.baseChips;
+function cardScoreDeltas(card: PlayingCard): { chipsDelta: number; multDelta: number; multMul: number } {
+  if (card.enhancement === 'stone') return { chipsDelta: 50, multDelta: 0, multMul: 1 };
+
+  let chipsDelta = card.baseChips;
   let multDelta = 0;
   let multMul = 1;
-  if (c.enhancement === 'bonus') chipsDelta += 30;
-  else if (c.enhancement === 'mult') multDelta += 4;
-  else if (c.enhancement === 'glass') multMul *= 2;
-  if (c.edition === 'foil') chipsDelta += 50;
-  else if (c.edition === 'holographic') multDelta += 10;
-  else if (c.edition === 'polychrome') multMul *= 1.5;
+
+  if (card.enhancement === 'bonus') chipsDelta += 30;
+  else if (card.enhancement === 'mult') multDelta += 4;
+  else if (card.enhancement === 'glass') multMul *= 2;
+
+  if (card.edition === 'foil') chipsDelta += 50;
+  else if (card.edition === 'holographic') multDelta += 10;
+  else if (card.edition === 'polychrome') multMul *= 1.5;
+
   return { chipsDelta, multDelta, multMul };
 }
 
+function setDebugVisible(next: boolean) {
+  debugVisible = next;
+  if (!debugOverlay || !debugToggleBtn) return;
+  debugOverlay.classList.toggle('hidden', !debugVisible);
+  debugToggleBtn.setAttribute('aria-pressed', debugVisible ? 'true' : 'false');
+}
+
+function toggleDebugOverlay() {
+  setDebugVisible(!debugVisible);
+  updateDebugOverlay(true);
+}
+
+function updateDebugOverlay(force = false) {
+  if (!debugOverlay || !debugContent) return;
+  if (!debugVisible && !force) return;
+
+  const metrics = sceneHandle.getMetrics();
+  const snapshot = state.toSnapshot();
+  const blindLabels = ['Small', 'Big', 'Boss'] as const;
+
+  const lines = [
+    `seed=${snapshot.config.seed} phase=${snapshot.phase}`,
+    `blind=${blindLabels[snapshot.blindIndex]} ante=${snapshot.ante}`,
+    `score=${snapshot.roundScore}/${snapshot.target} money=$${snapshot.money}`,
+    `hand=${snapshot.hand.length}/${snapshot.config.handSize} selected=${snapshot.selected.length} deck=${snapshot.deck.length} discard=${snapshot.discardPile.length}`,
+    `handsLeft=${snapshot.handsLeft} discardsLeft=${snapshot.discardsLeft} rngDraws=${snapshot.rngDrawCount}`,
+    `fps~=${fpsEstimate.toFixed(1)} calls=${metrics.calls} tris=${metrics.triangles} frame=${metrics.frame}`,
+  ];
+  debugContent.textContent = lines.join('\n');
+}
+
 // ---------- Actions ----------
+function dispatchAction(action: InputAction, payload?: { cardId?: string }): boolean | void {
+  if (action === 'select_card') {
+    if (!payload?.cardId) return false;
+    return state.toggleSelect(payload.cardId);
+  }
+  if (action === 'play_hand') {
+    if (!state.canPlay()) return;
+    audio.play('buttonClick');
+    void playSelected();
+    return;
+  }
+  if (action === 'discard') {
+    if (!state.canDiscard()) return;
+    audio.play('buttonClick');
+    void discardSelected();
+    return;
+  }
+  if (action === 'restart_run') {
+    resetRun();
+    return;
+  }
+  if (action === 'toggle_mute') {
+    audio.toggleMute();
+    if (!audio.isMuted()) audio.play('buttonClick');
+    return;
+  }
+  if (action === 'toggle_debug') {
+    toggleDebugOverlay();
+  }
+}
+
 async function playSelected() {
   if (!state.canPlay()) return;
   const playedCards = state.selectedCards();
   if (playedCards.length === 0) return;
 
-  // 1. Move selected cards into the play area in their selection order.
   const playSlots = layoutPlay(playedCards.length);
   audio.play('whoosh');
   playedCards.forEach((card, i) => {
     const obj = objects.get(card.id);
     if (!obj) return;
-    obj.userData.keepAlive = true; // shield from disposal during reflow
-    // Reparent to play group (preserve world by simple offset reset; groups are at known positions)
+    obj.userData.keepAlive = true;
     sceneHandle.handGroup.remove(obj);
     sceneHandle.playGroup.add(obj);
     obj.setSelected(false);
     obj.moveTo(playSlots[i], 0.4, i * 0.06);
   });
 
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   const br = state.playSelected();
   if (!br) return;
 
-  // Pulse scoring cards; dim non-scoring ones. Each scoring card ticks the
-  // chips/mult counters up by its own contribution — gives the readout the
-  // satisfying step-by-step rhythm of a real Balatro hand.
   showScorePopup(br);
 
   const scoringIds = new Set(br.hand.scoringCards.map((c) => c.id));
   let scoringIndex = 0;
   let runningChips = br.baseChips;
   let runningMult = br.baseMult;
-  // Per-card stagger — slower than before so each tick can breathe.
-  const STAGGER = 0.28;
-  const FIRST_DELAY = 0.15;
+  const stagger = 0.28;
+  const firstDelay = 0.15;
+
   for (const card of playedCards) {
     const obj = objects.get(card.id);
     if (!obj) continue;
+
     if (scoringIds.has(card.id)) {
       const idx = scoringIndex++;
-      const delay = FIRST_DELAY + idx * STAGGER;
-      const d = cardScoreDeltas(card);
+      const delay = firstDelay + idx * stagger;
+      const delta = cardScoreDeltas(card);
       const chipsFrom = runningChips;
       const multFrom = runningMult;
-      runningChips += d.chipsDelta;
-      runningMult = (runningMult + d.multDelta) * d.multMul;
+      runningChips += delta.chipsDelta;
+      runningMult = (runningMult + delta.multDelta) * delta.multMul;
       const chipsTo = runningChips;
       const multTo = runningMult;
 
       gsap.delayedCall(delay, () => {
         obj.pulse(1.22, 0.4);
         obj.flash(0xffd24a, 0.5);
-        // Emit chip burst at the card's world position
         const worldPos = new THREE.Vector3();
         obj.getWorldPosition(worldPos);
         sceneHandle.emitBurst(worldPos, {
@@ -334,36 +408,31 @@ async function playSelected() {
         });
         audio.play('chipTick', { volume: 0.25, pitch: 1 + idx * 0.08 });
 
-        // Tick the popup chips up by this card's contribution.
-        if (d.chipsDelta !== 0) {
+        if (delta.chipsDelta !== 0) {
           tweenNumber(popupChips, chipsFrom, chipsTo, 0.25, 'chipTick');
           gsap.fromTo(popupChips, { scale: 1 }, { scale: 1.18, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' });
         }
-        // Tick the popup mult up if this card contributes to it.
-        if (d.multDelta !== 0 || d.multMul !== 1) {
+        if (delta.multDelta !== 0 || delta.multMul !== 1) {
           tweenNumber(popupMult, Math.round(multFrom), Math.round(multTo), 0.25, 'multTick');
           gsap.fromTo(popupMult, { scale: 1 }, { scale: 1.22, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
         }
       });
     } else {
-      const mat = obj.faceMesh.material as THREE.MeshStandardMaterial;
-      mat.transparent = true;
-      gsap.to(mat, { opacity: 0.5, duration: 0.2 });
+      const material = obj.faceMesh.material as THREE.MeshStandardMaterial;
+      material.transparent = true;
+      gsap.to(material, { opacity: 0.5, duration: 0.2 });
     }
   }
 
-  // Reveal the final total after every card has chipped in.
-  const totalAt = FIRST_DELAY + Math.max(0, scoringIndex - 1) * STAGGER + 0.55;
+  const totalAt = firstDelay + Math.max(0, scoringIndex - 1) * stagger + 0.55;
   gsap.delayedCall(totalAt, () => revealScoreTotal(br));
 
   const prev = state.roundScore - br.total;
   gsap.delayedCall(totalAt + 0.05, () => {
     tweenNumber(roundScoreEl, prev, state.roundScore, 1.0, 'chipTick');
-    // HUD bump on the round score
     gsap.fromTo(roundScoreEl, { scale: 1 }, { scale: 1.25, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
   });
 
-  // After the readout, fly played cards off and remove.
   gsap.delayedCall(totalAt + 1.2, () => {
     for (const card of playedCards) {
       const obj = objects.get(card.id);
@@ -416,37 +485,98 @@ function resetRun() {
   updateHud();
 }
 
-btnPlay.addEventListener('click', () => { audio.play('buttonClick'); void playSelected(); });
-btnDiscard.addEventListener('click', () => { audio.play('buttonClick'); void discardSelected(); });
-overlayRestart.addEventListener('click', () => resetRun());
+for (const [id, action] of Object.entries(UI_ACTION_BINDINGS)) {
+  const el = maybe<HTMLButtonElement>(id);
+  if (!el) continue;
+  el.addEventListener('click', () => {
+    dispatchAction(action);
+  });
+}
 
-// Mute toggle (persisted via AudioManager → localStorage)
-const muteBtn = document.getElementById('btn-mute') as HTMLButtonElement | null;
+const muteBtn = maybe<HTMLButtonElement>('btn-mute');
 if (muteBtn) {
-  const refreshMute = (m: boolean) => {
-    muteBtn.textContent = m ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+  const refreshMute = (muted: boolean) => {
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
   };
   refreshMute(audio.isMuted());
   audio.onMutedChange(refreshMute);
-  muteBtn.addEventListener('click', () => {
-    audio.toggleMute();
-    if (!audio.isMuted()) audio.play('buttonClick');
+}
+
+if (debugToggleBtn) {
+  debugToggleBtn.addEventListener('click', () => {
+    dispatchAction('toggle_debug');
   });
 }
+
+window.addEventListener('keydown', (event) => {
+  const action = actionFromKeyboard(event);
+  if (!action) return;
+  event.preventDefault();
+  dispatchAction(action);
+});
 
 attachInteraction({
   renderer: sceneHandle.renderer,
   camera: sceneHandle.camera,
   handGroup: sceneHandle.handGroup,
   getHandObjects: getOrderedHand,
-  onToggleSelect: (id) => {
-    state.toggleSelect(id);
-    return state.selected.has(id);
-  },
+  onToggleSelect: (id) => Boolean(dispatchAction('select_card', { cardId: id })),
   onReorder: (ids) => { handOrder = ids; },
 });
 
-state.subscribe(() => updateHud());
+let lastFrameCount = sceneHandle.getMetrics().frame;
+let lastFpsSampleAt = performance.now();
+function tickDebugStats() {
+  const now = performance.now();
+  const elapsed = now - lastFpsSampleAt;
+  if (elapsed >= 400) {
+    const metrics = sceneHandle.getMetrics();
+    const frameDelta = metrics.frame - lastFrameCount;
+    fpsEstimate = (frameDelta * 1000) / elapsed;
+    lastFrameCount = metrics.frame;
+    lastFpsSampleAt = now;
+    updateDebugOverlay();
+  }
+  window.requestAnimationFrame(tickDebugStats);
+}
+window.requestAnimationFrame(tickDebugStats);
+
+state.subscribe(() => {
+  updateHud();
+  updateDebugOverlay();
+});
+
+window.__OPEN_POKER_TEST__ = {
+  snapshot: () => state.toSnapshot(),
+  loadSnapshot: (snapshot: RunSnapshot) => {
+    state.reset(snapshot);
+    handOrder = snapshot.hand.map((card) => card.id);
+    reflowHand(0);
+    updateHud();
+    updateDebugOverlay(true);
+  },
+  selectFirst: (count = 1) => {
+    const selectedIds = [...state.selected];
+    for (const id of selectedIds) state.toggleSelect(id);
+    for (const card of state.hand.slice(0, Math.max(0, Math.min(5, count)))) {
+      if (!state.selected.has(card.id)) state.toggleSelect(card.id);
+    }
+  },
+  play: () => {
+    dispatchAction('play_hand');
+  },
+  discard: () => {
+    dispatchAction('discard');
+  },
+  restart: () => {
+    dispatchAction('restart_run');
+  },
+  toggleDebug: () => {
+    dispatchAction('toggle_debug');
+  },
+};
+
 reflowHand(0.6);
 updateHud();
+updateDebugOverlay(true);

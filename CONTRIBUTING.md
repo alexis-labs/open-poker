@@ -1,63 +1,87 @@
-# Contributing To Open Poker
+# Contributing to Open Poker
 
-Thanks for wanting to help. This project is early, so clear issues, small pull requests, and practical feedback are especially valuable.
+Thanks for helping build Open Poker.
 
-## Ways To Contribute
+This project is still early, so focused pull requests with clear intent are the fastest way to move it forward.
 
-- Report bugs with steps to reproduce.
-- Suggest focused gameplay, UI, audio, or accessibility improvements.
-- Improve poker scoring correctness and edge cases.
-- Add tests around game state and hand evaluation.
-- Add or improve art in `public/art`.
-- Improve documentation for setup, architecture, and contributor workflows.
-
-## Local Setup
+## Local setup
 
 ```bash
 npm install
 npm run dev
 ```
 
-Use `npm run build` before opening a pull request.
+Before opening a pull request, run:
 
-## Pull Request Checklist
+```bash
+npm run check
+```
 
-- Keep the change focused on one problem or feature.
-- Explain what changed and why.
-- Include screenshots or short clips for visible UI, animation, or art changes.
-- Mention any known limitations or follow-up work.
-- Run `npm run build` and include the result in the PR description.
+## Development boundaries
 
-## Code Guidelines
+- Keep simulation and game rules in `src/game`.
+- Keep Three.js rendering concerns in `src/render`.
+- Keep physical input bindings in `src/input` and map them to semantic actions.
+- Keep audio concerns in `src/audio`.
+- Do not couple core rules to DOM or Three.js objects.
 
-- Follow the existing TypeScript style.
-- Keep game logic in `src/game` when it does not need renderer details.
-- Keep Three.js rendering and input behavior in `src/render`.
+See [`docs/adr/0001-architecture-boundaries.md`](docs/adr/0001-architecture-boundaries.md) for the architecture contract.
+
+## Definition of Done
+
+A change is done when all items below are true:
+
+- The requested behavior is implemented and documented.
+- `npm run check` passes locally.
+- Existing tests pass and new behavior has test coverage when applicable.
+- Visual changes include screenshots or short clips.
+- Any tradeoffs, known gaps, or follow-up items are documented in the PR.
+
+## Pull request checklist
+
+- [ ] Change is scoped to a single feature/fix/theme.
+- [ ] Title and summary explain what changed and why.
+- [ ] Relevant tests were added or updated.
+- [ ] `npm run check` passed.
+- [ ] Screenshots/clips included for visible UI or animation changes.
+- [ ] Follow-up items or limitations listed.
+
+## Testing expectations
+
+- Unit tests live under `tests/unit`.
+- Smoke playtests live under `tests/smoke`.
+- Coverage focuses on `src/game` (rules and run state).
+- Reproduction-sensitive bug fixes should include deterministic cases (seed/snapshot).
+
+## Reporting bugs
+
+When opening a bug report, include:
+
+- Steps to reproduce.
+- Expected behavior vs actual behavior.
+- Browser and OS.
+- Seed and/or snapshot details when possible.
+- Screenshot/video/console evidence.
+
+## Coding guidelines
+
 - Prefer readable names over abbreviations.
-- Avoid broad refactors in feature or bug-fix pull requests.
+- Keep changes small and easy to review.
+- Avoid broad refactors bundled with feature work.
+- Add comments only where behavior is non-obvious.
 
-## Art Contributions
+## Asset contributions
 
-Art files live under `public/art` and are served from `/art/...` at runtime.
+Assets live in `public/art` and are loaded from `/art/...`.
 
-- Card faces use `{RANK}_{suit}.png`, for example `A_spades.png` or `10_hearts.png`.
-- Card backs use `public/art/back/default.png`.
-- Blind badges use `small.png`, `big.png`, and `boss.png`.
+- Cards: `{RANK}_{suit}.png` (for example `A_spades.png`, `10_hearts.png`).
+- Card back: `public/art/back/default.png`.
+- Blinds: `small.png`, `big.png`, `boss.png`.
 
-See `public/art/README.md` for the full asset guide.
+See `public/art/README.md` for full details and fallback behavior.
 
-Only submit art that you created yourself, have permission to contribute, or can clearly license for the project.
+Only submit assets you created or have explicit permission to contribute.
 
-## Reporting Bugs
+## Community
 
-When reporting a bug, include:
-
-- What you expected to happen.
-- What actually happened.
-- Steps to reproduce it.
-- Browser and operating system.
-- Screenshots, console errors, or short videos if useful.
-
-## Community Standards
-
-Please follow `CODE_OF_CONDUCT.md`. Keep discussions kind, specific, and useful.
+Please follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

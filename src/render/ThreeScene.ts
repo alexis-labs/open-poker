@@ -17,6 +17,7 @@ export interface SceneHandle {
   setDeckCount: (n: number) => void;
   particles: ParticleSystem;
   emitBurst: (worldPos: THREE.Vector3, opts?: Parameters<ParticleSystem['emit']>[1]) => void;
+  getMetrics: () => { frame: number; calls: number; triangles: number; points: number; lines: number };
   dispose: () => void;
   shake: (amount?: number, duration?: number) => void;
 }
@@ -239,7 +240,15 @@ export function createScene(container: HTMLElement): SceneHandle {
     renderer.domElement.remove();
   };
 
-  return { scene, camera, renderer, handGroup, playGroup, deckGroup, setDeckCount, particles, emitBurst, dispose, shake };
+  const getMetrics = () => ({
+    frame: renderer.info.render.frame,
+    calls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    points: renderer.info.render.points,
+    lines: renderer.info.render.lines,
+  });
+
+  return { scene, camera, renderer, handGroup, playGroup, deckGroup, setDeckCount, particles, emitBurst, getMetrics, dispose, shake };
 }
 
 /** Compute hand-layout transforms — gentle fan, no overlap. */

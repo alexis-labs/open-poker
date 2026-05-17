@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>open-poker — Balatro-like</title>
+    <title>open-poker - Balatro-like</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -30,15 +30,14 @@
 
       <!-- LEFT SIDEBAR (HUD) -->
       <aside class="sidebar">
-        <!-- Blind block -->
         <section class="block blind-block">
           <div class="block-header" id="blind-name">Small Blind</div>
           <div class="blind-body">
-            <div class="blind-badge" id="blind-badge"><span>SMALL<br/>BLIND</span></div>
+            <div class="blind-badge" id="blind-badge"><span>SMALL<br />BLIND</span></div>
             <div class="blind-info">
               <div class="blind-info-label">Score at least</div>
               <div class="blind-target">
-                <span class="chip-icon">✱</span>
+                <span class="chip-icon">*</span>
                 <span id="blind-target" class="num">300</span>
               </div>
               <div class="blind-info-label">
@@ -48,18 +47,16 @@
           </div>
         </section>
 
-        <!-- Round score -->
         <section class="block round-score-block">
-          <div class="block-label">Round<br/>score</div>
+          <div class="block-label">Round<br />score</div>
           <div class="round-score-value">
-            <span class="chip-icon">✱</span>
+            <span class="chip-icon">*</span>
             <span id="round-score" class="num">0</span>
           </div>
         </section>
 
-        <!-- Chips × Mult -->
         <section class="block hand-block">
-          <div class="hand-type" id="hand-type">—</div>
+          <div class="hand-type" id="hand-type">-</div>
           <div class="chips-mult-row">
             <div class="chips-pill"><span id="chips" class="num">0</span></div>
             <div class="x-sep">X</div>
@@ -67,7 +64,6 @@
           </div>
         </section>
 
-        <!-- Run actions + counters -->
         <section class="block actions-block">
           <div class="action-grid">
             <button id="btn-runinfo" class="big-btn red">
@@ -86,7 +82,7 @@
           <div class="action-grid">
             <button id="btn-options" class="big-btn orange">
               <span class="big-btn-label">Options</span>
-              <span class="big-btn-sub">≡</span>
+              <span class="big-btn-sub">=</span>
             </button>
             <div class="counter-card">
               <div class="counter-label">Ante</div>
@@ -103,17 +99,14 @@
         </section>
       </aside>
 
-      <!-- Floating counters near the deck / hand -->
       <div class="hand-counter" id="hand-counter">0/8</div>
       <div class="deck-counter" id="deck-counter">52/52</div>
 
-      <!-- Action bar (Play / Discard / Reset) -->
       <div class="actionbar">
-        <button id="btn-play" class="btn btn-play">Play Hand</button>
-        <button id="btn-discard" class="btn btn-discard">Discard</button>
+        <button id="btn-play" class="btn btn-play" data-testid="btn-play">Play Hand</button>
+        <button id="btn-discard" class="btn btn-discard" data-testid="btn-discard">Discard</button>
       </div>
 
-      <!-- Score popup -->
       <div id="score-popup" class="score-popup hidden">
         <div id="popup-hand" class="popup-hand">Pair</div>
         <div class="popup-row">
@@ -124,19 +117,21 @@
         <div id="popup-total" class="popup-total">0</div>
       </div>
 
-      <!-- Game over / win overlay -->
       <div id="overlay" class="overlay hidden">
         <div class="overlay-card">
           <div id="overlay-title" class="overlay-title">Game Over</div>
           <div id="overlay-sub" class="overlay-sub"></div>
-          <button id="overlay-restart" class="btn btn-play">New Run</button>
+          <button id="overlay-restart" class="btn btn-play" data-testid="btn-restart">New Run</button>
         </div>
       </div>
 
-      <!-- Hidden seed (kept for state; not shown in the HUD) -->
       <span id="seed" hidden></span>
 
-      <!-- Mute / unmute toggle -->
+      <aside id="debug-overlay" class="debug-overlay hidden" data-testid="debug-overlay">
+        <pre id="debug-content" class="debug-content"></pre>
+      </aside>
+      <button id="btn-debug" class="debug-btn" aria-pressed="false" aria-label="Toggle debug panel">DBG</button>
+
       <button id="btn-mute" class="mute-btn" aria-label="Mute">🔊</button>
     </div>
     <script type="module" src="/src/main.ts"></script>

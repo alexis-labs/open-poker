@@ -98,3 +98,40 @@ export interface ScoreStep {
   multDelta?: number;
   multMul?: number;
 }
+
+export type RunPhase = 'blind-select' | 'play' | 'shop' | 'game-over' | 'win';
+
+export interface RunConfigSnapshot {
+  seed: number;
+  handSize: number;
+  handsPerRound: number;
+  discardsPerRound: number;
+  startingMoney: number;
+}
+
+export interface RunSnapshot {
+  version: 1;
+  config: RunConfigSnapshot;
+  rngDrawCount: number;
+  phase: RunPhase;
+  ante: number;
+  blindIndex: 0 | 1 | 2;
+  money: number;
+  deck: PlayingCard[];
+  discardPile: PlayingCard[];
+  hand: PlayingCard[];
+  selected: string[];
+  handsLeft: number;
+  discardsLeft: number;
+  roundScore: number;
+  target: number;
+  handLevels: Record<PokerHandType, HandLevel>;
+}
+
+export type InputAction =
+  | 'select_card'
+  | 'play_hand'
+  | 'discard'
+  | 'restart_run'
+  | 'toggle_mute'
+  | 'toggle_debug';

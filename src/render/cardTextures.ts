@@ -48,6 +48,16 @@ function tryOverlayImage(url: string, canvas: HTMLCanvasElement, tex: THREE.Canv
     ctx.clip();
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     ctx.restore();
+    // Subtle dark outline so imported art reads cleanly against the felt.
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    rounded(ctx, 6, 6, canvas.width - 12, canvas.height - 12, 22);
+    ctx.stroke();
+    // Inner highlight stroke for a tiny bit of depth.
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    rounded(ctx, 9, 9, canvas.width - 18, canvas.height - 18, 19);
+    ctx.stroke();
     tex.needsUpdate = true;
   };
   img.onerror = () => { /* leave procedural art in place */ };

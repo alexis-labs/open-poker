@@ -31,13 +31,71 @@ export class CardObject extends THREE.Group {
   faceMesh: THREE.Mesh;
   backMesh: THREE.Mesh;
   glowMesh: THREE.Mesh;
+  shadowMesh: THREE.Mesh;
   private glowMaterial: THREE.ShaderMaterial;
+  private shadowMaterial: THREE.ShaderMaterial;
 
   constructor(card: PlayingCard) {
     super();
     this.card = card;
 
     const geom = new THREE.PlaneGeometry(CARD_W, CARD_H);
+
+    // Soft drop shadow — a slightly larger plane sitting behind everything,
+    // offset down/right, painted by a rounded-rect SDF with a feathered
+    // falloff. Gives the card weight and lifts it off the felt.
+    const shadowPad = 0.5;
+    const shadowOffset = new THREE.Vector2(0.06, -0.08);
+    const shadowGeom = new THREE.PlaneGeometry(CARD_W + shadowPad, CARD_H + shadowPad);
+    this.shadowMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: {
+        uSize: { value: new THREE.Vector2(CARD_W + shadowPad, CARD_H + shadowPad) },
+        uInner: { value: new THREE.Vector2(CARD_W, CARD_H) },
+        uRadius: { value: 0.18 },
+        uOffset: { value: shadowOffset },
+        uOpacity: { value: 0.55 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        precision highp float;
+        varying vec2 vUv;
+        uniform vec2 uSize;
+        uniform vec2 uInner;
+        uniform float uRadius;
+        uniform vec2 uOffset;
+        uniform float uOpacity;
+
+        float sdRoundBox(vec2 p, vec2 b, float r) {
+          vec2 q = abs(p) - b + vec2(r);
+          return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+        }
+
+        void main() {
+          // Plane-local coords (centred). Shift sampling so the shadow falls
+          // down-right of the card.
+          vec2 p = (vUv - 0.5) * uSize - uOffset;
+          float d = sdRoundBox(p, uInner * 0.5, uRadius);
+          float pad = (uSize.x - uInner.x) * 0.5;
+          // Smooth falloff from card edge outward across the padding region.
+          float a = 1.0 - smoothstep(-0.02, pad * 0.9, d);
+          a = pow(a, 1.8) * uOpacity;
+          if (a <= 0.002) discard;
+          gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+        }
+      `,
+    });
+    this.shadowMesh = new THREE.Mesh(shadowGeom, this.shadowMaterial);
+    // Sit behind the glow and the card faces.
+    this.shadowMesh.position.z = -CARD_T * 0.5;
+    this.shadowMesh.renderOrder = -2;
 
     // Soft outline glow — a slightly larger plane sitting just behind the
     // card face. A fragment shader paints a feathered rounded-rect border
@@ -136,7 +194,7 @@ export class CardObject extends THREE.Group {
     this.faceMesh.userData.cardObject = this;
     this.backMesh.userData.cardObject = this;
 
-    this.add(this.faceMesh, this.backMesh, this.glowMesh);
+    this.add(this.shadowMesh, this.faceMesh, this.backMesh, this.glowMesh);
   }
 
   /** Animate to a target slot transform; preserves selection lift. */
@@ -254,5 +312,7 @@ export class CardObject extends THREE.Group {
     (this.backMesh.material as THREE.Material).dispose();
     this.glowMesh.geometry.dispose();
     this.glowMaterial.dispose();
+    this.shadowMesh.geometry.dispose();
+    this.shadowMaterial.dispose();
   }
 }

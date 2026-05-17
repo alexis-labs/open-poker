@@ -6,23 +6,33 @@ labels: bug
 assignees: ""
 ---
 
-## What Happened?
+## Summary
 
+What happened?
 
-## Expected Behavior
+## Expected behavior
 
+What did you expect instead?
 
-## Steps To Reproduce
+## Steps to reproduce
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
+
+## Deterministic reproduction data
+
+- Seed (from HUD/debug):
+- Snapshot JSON (optional but preferred):
+- Was this reproducible on restart with same seed? (yes/no):
 
 ## Environment
 
 - Browser:
 - Operating system:
-- Node.js version, if relevant:
+- Node.js version (if relevant):
 
-## Screenshots, Videos, Or Console Output
+## Evidence
 
+- Screenshot or video:
+- Console output / stack trace:

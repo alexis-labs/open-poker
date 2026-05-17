@@ -28,15 +28,24 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "gen-art": "node scripts/generate-dummy-art.mjs"
+    "gen-art": "node scripts/generate-dummy-art.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:smoke": "playwright test",
+    "check": "npm run typecheck && npm run test:coverage && npm run build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/howler": "^2.2.12",
     "@types/three": "^0.184.1",
+    "@vitest/coverage-v8": "^4.1.6",
     "typescript": "~6.0.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.6"
   },
   "dependencies": {
     "gsap": "^3.15.0",

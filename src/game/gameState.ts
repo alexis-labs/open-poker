@@ -4,10 +4,17 @@
 
 import { buildStandardDeck, makeRng, shuffle } from './cards';
 import { evaluateHand, scoreHand } from './pokerEngine';
-import type { HandLevel, PlayingCard, PokerHandType, ScoreBreakdown } from './types';
+import type {
+  HandLevel,
+  PlayingCard,
+  PokerHandType,
+  RunPhase,
+  RunSnapshot,
+  ScoreBreakdown,
+} from './types';
 import { HAND_BASE } from './types';
 
-export type Phase = 'blind-select' | 'play' | 'shop' | 'game-over' | 'win';
+export type Phase = RunPhase;
 
 export interface BlindDef {
   name: string;
@@ -35,9 +42,36 @@ export const DEFAULT_CONFIG: RunConfig = {
 // Ante base targets follow Balatro's curve approximately.
 const ANTE_BASE: number[] = [300, 800, 2000, 5000, 11000, 20000, 35000, 50000];
 
+function cloneCard(card: PlayingCard): PlayingCard {
+  return { ...card };
+}
+
+function cloneCards(cards: PlayingCard[]): PlayingCard[] {
+  return cards.map(cloneCard);
+}
+
+function makeInitialHandLevels(): Record<PokerHandType, HandLevel> {
+  return Object.fromEntries(
+    (Object.keys(HAND_BASE) as PokerHandType[]).map((k) => [
+      k,
+      { level: 1, chips: HAND_BASE[k].chips, mult: HAND_BASE[k].mult },
+    ]),
+  ) as Record<PokerHandType, HandLevel>;
+}
+
+function cloneHandLevels(levels: Record<PokerHandType, HandLevel>): Record<PokerHandType, HandLevel> {
+  return Object.fromEntries(
+    (Object.keys(levels) as PokerHandType[]).map((k) => [
+      k,
+      { ...levels[k] },
+    ]),
+  ) as Record<PokerHandType, HandLevel>;
+}
+
 export class GameState {
   config: RunConfig;
-  rng: () => number;
+  private rng: () => number;
+  private rngDrawCount = 0;
 
   phase: Phase = 'play'; // start straight in play for the bootstrap
   ante = 1;
@@ -61,17 +95,21 @@ export class GameState {
   // Subscribers
   private listeners = new Set<() => void>();
 
-  constructor(config: Partial<RunConfig> = {}) {
+  constructor(config: Partial<RunConfig> = {}, boot = true) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.rng = makeRng(this.config.seed);
+    this.rng = this.createTrackedRng(this.config.seed);
     this.money = this.config.startingMoney;
     this.handsLeft = this.config.handsPerRound;
     this.discardsLeft = this.config.discardsPerRound;
-    this.handLevels = Object.fromEntries(
-      (Object.keys(HAND_BASE) as PokerHandType[]).map((k) => [k, { level: 1, chips: HAND_BASE[k].chips, mult: HAND_BASE[k].mult }]),
-    ) as Record<PokerHandType, HandLevel>;
+    this.handLevels = makeInitialHandLevels();
 
-    this.startBlind();
+    if (boot) this.startBlind();
+  }
+
+  static fromSnapshot(snapshot: RunSnapshot): GameState {
+    const state = new GameState(snapshot.config, false);
+    state.loadSnapshot(snapshot);
+    return state;
   }
 
   subscribe(fn: () => void): () => void {
@@ -79,6 +117,10 @@ export class GameState {
     return () => this.listeners.delete(fn);
   }
   private emit() { for (const fn of this.listeners) fn(); }
+
+  getRngDrawCount(): number {
+    return this.rngDrawCount;
+  }
 
   // ---------- round flow ----------
 
@@ -178,15 +220,76 @@ export class GameState {
     this.startBlind();
   }
 
-  reset(seed?: number) {
-    this.config = { ...this.config, seed: seed ?? Math.floor(Math.random() * 1e9) };
-    this.rng = makeRng(this.config.seed);
+  reset(seedOrSnapshot?: number | RunSnapshot) {
+    if (typeof seedOrSnapshot === 'object' && seedOrSnapshot !== null) {
+      this.loadSnapshot(seedOrSnapshot);
+      this.emit();
+      return;
+    }
+    this.config = {
+      ...this.config,
+      seed: typeof seedOrSnapshot === 'number' ? seedOrSnapshot : Math.floor(Math.random() * 1e9),
+    };
+    this.rng = this.createTrackedRng(this.config.seed);
     this.ante = 1;
     this.blindIndex = 0;
     this.money = this.config.startingMoney;
-    this.handLevels = Object.fromEntries(
-      (Object.keys(HAND_BASE) as PokerHandType[]).map((k) => [k, { level: 1, chips: HAND_BASE[k].chips, mult: HAND_BASE[k].mult }]),
-    ) as Record<PokerHandType, HandLevel>;
+    this.handLevels = makeInitialHandLevels();
+    this.lastScore = null;
     this.startBlind();
+  }
+
+  toSnapshot(): RunSnapshot {
+    return {
+      version: 1,
+      config: { ...this.config },
+      rngDrawCount: this.rngDrawCount,
+      phase: this.phase,
+      ante: this.ante,
+      blindIndex: this.blindIndex,
+      money: this.money,
+      deck: cloneCards(this.deck),
+      discardPile: cloneCards(this.discardPile),
+      hand: cloneCards(this.hand),
+      selected: [...this.selected],
+      handsLeft: this.handsLeft,
+      discardsLeft: this.discardsLeft,
+      roundScore: this.roundScore,
+      target: this.target,
+      handLevels: cloneHandLevels(this.handLevels),
+    };
+  }
+
+  loadSnapshot(snapshot: RunSnapshot) {
+    if (snapshot.version !== 1) {
+      throw new Error(`Unsupported snapshot version: ${snapshot.version}`);
+    }
+
+    this.config = { ...snapshot.config };
+    this.rng = this.createTrackedRng(snapshot.config.seed, snapshot.rngDrawCount);
+    this.phase = snapshot.phase;
+    this.ante = snapshot.ante;
+    this.blindIndex = snapshot.blindIndex;
+    this.money = snapshot.money;
+    this.deck = cloneCards(snapshot.deck);
+    this.discardPile = cloneCards(snapshot.discardPile);
+    this.hand = cloneCards(snapshot.hand);
+    this.selected = new Set(snapshot.selected);
+    this.handsLeft = snapshot.handsLeft;
+    this.discardsLeft = snapshot.discardsLeft;
+    this.roundScore = snapshot.roundScore;
+    this.target = snapshot.target;
+    this.handLevels = cloneHandLevels(snapshot.handLevels);
+    this.lastScore = null;
+  }
+
+  private createTrackedRng(seed: number, drawCount = 0): () => number {
+    const base = makeRng(seed);
+    for (let i = 0; i < drawCount; i++) base();
+    this.rngDrawCount = drawCount;
+    return () => {
+      this.rngDrawCount += 1;
+      return base();
+    };
   }
 }

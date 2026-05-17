@@ -1,24 +1,29 @@
 ## Summary
 
-- 
+- What changed?
+- Why was this needed?
 
-## Type Of Change
+## Type of change
 
 - [ ] Bug fix
 - [ ] Feature
-- [ ] Documentation
-- [ ] Art or audio
 - [ ] Refactor
+- [ ] Test/CI
+- [ ] Documentation
+- [ ] Art/audio
 
-## Testing
+## Validation
 
+- [ ] `npm run typecheck`
+- [ ] `npm run test:coverage`
 - [ ] `npm run build`
-- [ ] Manual browser test
+- [ ] `npm run test:smoke` (if UI/gameplay flow was touched)
 
-## Screenshots Or Clips
+## Visual evidence (if applicable)
 
-Add screenshots or short clips for visible UI, animation, or art changes.
+Screenshots or short clips for UI/animation changes.
 
 ## Notes
 
-Mention known limitations, follow-up work, or review areas.
+- Known limitations:
+- Follow-up work:

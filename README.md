@@ -1,33 +1,28 @@
 # Open Poker
 
-> A browser-based poker roguelike prototype — built with TypeScript, Three.js, Vite, GSAP, and Howler.
+Browser-based poker roguelike prototype built with TypeScript, Three.js, Vite, GSAP, and Howler.
 
-Open Poker is an open-source, Balatro-inspired card game running entirely in the browser. It currently features a playable hand loop, poker scoring with chips × multiplier, animated 3D cards, procedural card textures, and drop-in art overrides.
-
-The project aims to be **easy to run, easy to read, and easy to extend** — a friendly playground for contributors interested in card games, roguelikes, web rendering, or game feel.
+Open Poker is a Balatro-inspired, open-source card game that runs entirely in the browser. The codebase is organized so simulation logic can evolve safely without coupling to rendering.
 
 ![Open Poker gameplay example](public/examples/gameplay-example.png)
 
----
+## What is implemented
 
-## Features
+- 3D table and card rendering with Three.js.
+- Poker hand evaluation with chips x multiplier scoring.
+- Seeded runs with antes, blinds, hands, discards, deck, and score targets.
+- Play and discard loop, scoring popup, and win/lose overlays.
+- Optional art overrides from `public/art`.
+- Procedural audio via Howler.
+- Deterministic run snapshots for debugging and tests.
+- Debug overlay toggle (`F3` or `` ` ``) with runtime and renderer metrics.
 
-- 🎴 **3D card table** rendered with Three.js, with smooth GSAP-driven animations.
-- ♠️ **Poker hand evaluation** with Balatro-style chips × multiplier scoring.
-- 🎲 **Seeded run state** with antes, blinds, hands, discards, deck, and score targets.
-- 🖱️ **Interactive flow** — card selection, play, discard, scoring popups, win/lose states.
-- 🎨 **Procedural card faces and backs**, with optional PNG/JPG/WEBP overrides from `public/art`.
-- 🔊 **Synthesized audio** via Howler — no audio assets required to get started.
-- 📦 **Zero backend** — pure static build, deploys anywhere.
-
----
-
-## Getting Started
+## Getting started
 
 ### Requirements
 
-- [Node.js](https://nodejs.org/) 20 or newer
-- npm (bundled with Node.js)
+- Node.js 20+
+- npm
 
 ### Install and run
 
@@ -36,82 +31,81 @@ npm install
 npm run dev
 ```
 
-Vite will print a local URL, typically `http://localhost:5173`.
+The dev server runs on a local Vite URL (typically `http://localhost:5173`).
 
-### Available scripts
+## Scripts
 
-| Command            | Description                                       |
-| ------------------ | ------------------------------------------------- |
-| `npm run dev`      | Start the Vite dev server with hot reload.        |
-| `npm run build`    | Type-check and produce a production build.        |
-| `npm run preview`  | Serve the production build locally.               |
-| `npm run gen-art`  | Generate placeholder art into `public/art`.       |
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start Vite dev server with hot reload. |
+| `npm run typecheck` | Run TypeScript checks (`--noEmit`). |
+| `npm run test` | Run unit tests once. |
+| `npm run test:watch` | Run unit tests in watch mode. |
+| `npm run test:coverage` | Run unit tests with v8 coverage. |
+| `npm run test:smoke` | Run browser smoke playtest with Playwright. |
+| `npm run build` | Typecheck and produce production build. |
+| `npm run check` | Project quality gate (`typecheck + coverage + build`). |
+| `npm run preview` | Serve production build locally. |
+| `npm run gen-art` | Generate placeholder art into `public/art`. |
 
----
-
-## Project Structure
+## Project structure
 
 ```text
 src/
-  main.ts          App entry point.
-  style.css        Global styles.
-  audio/           Audio manager and procedural sound synthesis.
-  game/            Renderer-agnostic cards, game state, poker engine, and types.
-  render/          Three.js scene, card objects, textures, particles, and input.
+  main.ts          App bootstrap (state + render + input + HUD).
+  game/            Renderer-agnostic simulation rules and run state.
+  render/          Three.js scene, cards, effects, and interaction.
+  audio/           Audio manager and procedural synthesis.
+  input/           Input action map and physical-key bindings.
 public/
-  art/             Optional art overrides (cards, backs, blinds, jokers, UI).
-  examples/        Screenshots and media used in docs.
-scripts/
-  generate-dummy-art.mjs   Placeholder art generator.
+  art/             Optional asset overrides (cards, backs, blinds, UI).
+  examples/        Media used in docs.
+tests/
+  unit/            Vitest coverage over game logic.
+  smoke/           Playwright gameplay smoke checks.
+docs/
+  adr/             Architecture decision records.
 ```
 
-The split between `src/game` (rules, pure logic) and `src/render` (Three.js) is intentional — please keep it that way when contributing.
+## Deterministic debugging
 
----
+- `GameState` exposes `toSnapshot()`, `loadSnapshot()`, and `reset(seed|snapshot)`.
+- A test bridge is exposed in-browser as `window.__OPEN_POKER_TEST__` for automated smoke checks.
+- The debug panel shows:
+  - seed, phase, blind, ante
+  - score and economy counters
+  - hand/deck/discard counts
+  - approximate FPS and renderer draw/triangle metrics
 
-## Adding Art
+## Testing and CI
 
-Drop PNG, JPG, or WEBP files into `public/art/`. Art can be added one file at a time; anything missing falls back to procedural textures automatically.
+- Unit tests validate hand evaluation, scoring math, and run flow transitions.
+- Coverage threshold is enforced for `src/game` in `vitest.config.ts`.
+- GitHub Actions:
+  - `build.yml`: `typecheck + test:coverage + build`
+  - `playtest.yml`: Playwright smoke pass + HTML report artifact
 
-See [public/art/README.md](public/art/README.md) for filenames, recommended resolutions, and override behavior.
+## Performance budget (desktop first)
 
-You can also run `npm run gen-art` to quickly generate placeholder images for testing.
+See [`docs/performance-budget.md`](docs/performance-budget.md).
 
----
+Initial targets:
+- 55+ FPS average during normal hand interactions on desktop.
+- Keep draw calls stable and visible UI responsive during scoring bursts.
 
 ## Contributing
 
-Contributions are very welcome! Some good first areas:
+Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-- Poker rule fixes and scoring edge cases.
-- UI polish, accessibility, and responsive layout improvements.
-- 3D interaction and animation tuning.
-- Sound design.
-- Card, blind, joker, and UI artwork.
-- Tests for the game logic and poker engine.
-- Documentation improvements.
+Suggested first areas:
+- Poker edge-case correctness.
+- HUD and interaction polish.
+- Accessibility and responsive improvements.
+- Additional gameplay systems (jokers, consumables, shop loop).
+- Test coverage expansions and developer tooling.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-### Development guidelines
-
-- Keep game rules in `src/game` renderer-agnostic.
-- Keep Three.js-specific behavior in `src/render`.
-- Prefer small, focused pull requests that are easy to review.
-- Run `npm run build` before submitting changes.
-
----
-
-## Tech Stack
-
-- **[TypeScript](https://www.typescriptlang.org/)** — typed game logic.
-- **[Vite](https://vitejs.dev/)** — dev server and bundler.
-- **[Three.js](https://threejs.org/)** — 3D rendering.
-- **[GSAP](https://gsap.com/)** — animation.
-- **[Howler.js](https://howlerjs.com/)** — audio.
-
----
+See [`docs/good-first-issues.md`](docs/good-first-issues.md) for ready-to-pick starter tasks.
 
 ## License
 
-No license has been selected yet. Until one is added, please ask before reusing this code or assets outside this repository.
+MIT. See [`LICENSE`](LICENSE).
