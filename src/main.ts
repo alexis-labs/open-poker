@@ -220,34 +220,51 @@ function tweenNumber(el: HTMLElement, from: number, to: number, duration: number
   });
 }
 
+/** Open the score popup with the base (hand-level) chips/mult; per-card
+ *  increments are driven from the play loop so the readout ticks up with
+ *  each scoring card pulse, giving the hand a satisfying "ka-ching" rhythm. */
 function showScorePopup(br: ScoreBreakdown) {
   popup.classList.remove('hidden');
   popupHand.textContent = `${br.hand.type}`;
-  popupChips.textContent = '0';
-  popupMult.textContent = '0';
+  popupChips.textContent = Math.round(br.baseChips).toLocaleString();
+  popupMult.textContent = Math.round(br.baseMult).toLocaleString();
   popupTotal.textContent = '0';
 
   gsap.fromTo(popup,
     { scale: 0.5, opacity: 0 },
     { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)' },
   );
+  gsap.fromTo(popupHand, { scale: 0.7 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' });
   audio.play('scorePop');
+}
 
-  tweenNumber(popupChips, 0, br.finalChips, 0.6, 'chipTick');
-  tweenNumber(popupMult,  0, br.finalMult,  0.6, 'multTick');
+/** Final total reveal — fires once all per-card increments have finished. */
+function revealScoreTotal(br: ScoreBreakdown) {
+  tweenNumber(popupTotal, 0, br.total, 0.8);
+  gsap.fromTo(popupTotal, { scale: 0.6 }, { scale: 1.2, duration: 0.3, yoyo: true, repeat: 1, ease: 'power2.out' });
+  audio.play('chaching');
+  // Scale shake intensity by how big the score is relative to the target.
+  const intensity = Math.max(0.08, Math.min(0.6, (br.total / Math.max(1, state.target)) * 0.5));
+  sceneHandle.shake(intensity, 0.45);
 
-  gsap.delayedCall(0.7, () => {
-    tweenNumber(popupTotal, 0, br.total, 0.8);
-    gsap.fromTo(popupTotal, { scale: 0.6 }, { scale: 1.2, duration: 0.3, yoyo: true, repeat: 1, ease: 'power2.out' });
-    audio.play('chaching');
-    // Scale shake intensity by how big the score is relative to the target.
-    const intensity = Math.max(0.08, Math.min(0.6, (br.total / Math.max(1, state.target)) * 0.5));
-    sceneHandle.shake(intensity, 0.45);
-  });
-
-  gsap.delayedCall(2.2, () => {
+  gsap.delayedCall(1.5, () => {
     gsap.to(popup, { opacity: 0, duration: 0.4, onComplete: () => popup.classList.add('hidden') });
   });
+}
+
+/** Per-card chip / mult contribution — mirrors the math in `scoreHand`. */
+function cardScoreDeltas(c: PlayingCard): { chipsDelta: number; multDelta: number; multMul: number } {
+  if (c.enhancement === 'stone') return { chipsDelta: 50, multDelta: 0, multMul: 1 };
+  let chipsDelta = c.baseChips;
+  let multDelta = 0;
+  let multMul = 1;
+  if (c.enhancement === 'bonus') chipsDelta += 30;
+  else if (c.enhancement === 'mult') multDelta += 4;
+  else if (c.enhancement === 'glass') multMul *= 2;
+  if (c.edition === 'foil') chipsDelta += 50;
+  else if (c.edition === 'holographic') multDelta += 10;
+  else if (c.edition === 'polychrome') multMul *= 1.5;
+  return { chipsDelta, multDelta, multMul };
 }
 
 // ---------- Actions ----------
@@ -275,15 +292,33 @@ async function playSelected() {
   const br = state.playSelected();
   if (!br) return;
 
-  // Pulse scoring cards; dim non-scoring ones.
+  // Pulse scoring cards; dim non-scoring ones. Each scoring card ticks the
+  // chips/mult counters up by its own contribution — gives the readout the
+  // satisfying step-by-step rhythm of a real Balatro hand.
+  showScorePopup(br);
+
   const scoringIds = new Set(br.hand.scoringCards.map((c) => c.id));
   let scoringIndex = 0;
+  let runningChips = br.baseChips;
+  let runningMult = br.baseMult;
+  // Per-card stagger — slower than before so each tick can breathe.
+  const STAGGER = 0.28;
+  const FIRST_DELAY = 0.15;
   for (const card of playedCards) {
     const obj = objects.get(card.id);
     if (!obj) continue;
     if (scoringIds.has(card.id)) {
       const idx = scoringIndex++;
-      gsap.delayedCall(0.05 + idx * 0.12, () => {
+      const delay = FIRST_DELAY + idx * STAGGER;
+      const d = cardScoreDeltas(card);
+      const chipsFrom = runningChips;
+      const multFrom = runningMult;
+      runningChips += d.chipsDelta;
+      runningMult = (runningMult + d.multDelta) * d.multMul;
+      const chipsTo = runningChips;
+      const multTo = runningMult;
+
+      gsap.delayedCall(delay, () => {
         obj.pulse(1.22, 0.4);
         obj.flash(0xffd24a, 0.5);
         // Emit chip burst at the card's world position
@@ -298,6 +333,17 @@ async function playSelected() {
           size: 16,
         });
         audio.play('chipTick', { volume: 0.25, pitch: 1 + idx * 0.08 });
+
+        // Tick the popup chips up by this card's contribution.
+        if (d.chipsDelta !== 0) {
+          tweenNumber(popupChips, chipsFrom, chipsTo, 0.25, 'chipTick');
+          gsap.fromTo(popupChips, { scale: 1 }, { scale: 1.18, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' });
+        }
+        // Tick the popup mult up if this card contributes to it.
+        if (d.multDelta !== 0 || d.multMul !== 1) {
+          tweenNumber(popupMult, Math.round(multFrom), Math.round(multTo), 0.25, 'multTick');
+          gsap.fromTo(popupMult, { scale: 1 }, { scale: 1.22, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
+        }
       });
     } else {
       const mat = obj.faceMesh.material as THREE.MeshStandardMaterial;
@@ -306,15 +352,19 @@ async function playSelected() {
     }
   }
 
-  showScorePopup(br);
+  // Reveal the final total after every card has chipped in.
+  const totalAt = FIRST_DELAY + Math.max(0, scoringIndex - 1) * STAGGER + 0.55;
+  gsap.delayedCall(totalAt, () => revealScoreTotal(br));
 
   const prev = state.roundScore - br.total;
-  tweenNumber(roundScoreEl, prev, state.roundScore, 1.0, 'chipTick');
-  // HUD bump on the round score
-  gsap.fromTo(roundScoreEl, { scale: 1 }, { scale: 1.25, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
+  gsap.delayedCall(totalAt + 0.05, () => {
+    tweenNumber(roundScoreEl, prev, state.roundScore, 1.0, 'chipTick');
+    // HUD bump on the round score
+    gsap.fromTo(roundScoreEl, { scale: 1 }, { scale: 1.25, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
+  });
 
   // After the readout, fly played cards off and remove.
-  gsap.delayedCall(1.8, () => {
+  gsap.delayedCall(totalAt + 1.2, () => {
     for (const card of playedCards) {
       const obj = objects.get(card.id);
       if (!obj) continue;
