@@ -553,25 +553,60 @@ function spawnCardScoreFloat(
   });
 }
 
-function pulseTriggeredJokers(br: ScoreBreakdown) {
-  const jokerIds = [...new Set(br.steps.map((step) => step.jokerId).filter(Boolean) as string[])];
-  jokerIds.forEach((id, index) => {
-    const slot = jokerSlotsEl.querySelector<HTMLElement>(`[data-joker-id="${id}"]`);
-    if (!slot) return;
+// Float a label above an arbitrary DOM element (used for joker slots so the
+// scoring animation can read like a Balatro tally bar). Uses fixed positioning
+// so it works regardless of the slot's container/overflow.
+function spawnSlotScoreFloat(
+  slot: HTMLElement,
+  labels: { text: string; cls: string }[],
+) {
+  if (labels.length === 0) return;
+  const rect = slot.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height * 0.25;
+
+  labels.forEach((label, i) => {
+    const el = document.createElement('div');
+    el.className = `card-score-float ${label.cls}`;
+    el.textContent = label.text;
+    el.style.position = 'fixed';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.opacity = '0';
+    el.style.zIndex = '60';
+    document.body.appendChild(el);
+
+    const delay = i * 0.08;
+    const drift = 32 + i * 6;
     gsap.fromTo(
-      slot,
-      { scale: 1, y: 0 },
-      {
-        scale: 1.12,
-        y: -6,
-        duration: 0.18,
-        delay: index * 0.08,
-        yoyo: true,
-        repeat: 1,
-        ease: 'power2.out',
-      },
+      el,
+      { opacity: 0, y: 6, scale: 0.6 },
+      { opacity: 1, y: 0, scale: 1.1, duration: 0.22, delay, ease: 'back.out(2.2)' },
     );
+    gsap.to(el, { y: -drift, scale: 1, duration: 0.9, delay: delay + 0.22, ease: 'sine.out' });
+    gsap.to(el, {
+      opacity: 0,
+      duration: 0.45,
+      delay: delay + 0.7,
+      ease: 'power1.in',
+      onComplete: () => el.remove(),
+    });
   });
+}
+
+function labelsForJokerStep(step: { chipsDelta?: number; multDelta?: number; multMul?: number }) {
+  const labels: { text: string; cls: string }[] = [];
+  if (step.chipsDelta) {
+    labels.push({ text: `+${Math.round(step.chipsDelta)}`, cls: 'is-chips' });
+  }
+  if (step.multDelta) {
+    labels.push({ text: `+${Math.round(step.multDelta)} Mult`, cls: 'is-mult-add' });
+  }
+  if (step.multMul && step.multMul !== 1) {
+    const m = Number.isInteger(step.multMul) ? step.multMul.toString() : step.multMul.toFixed(1);
+    labels.push({ text: `×${m} Mult`, cls: 'is-mult-mul' });
+  }
+  return labels;
 }
 
 // ---------- Actions ----------
@@ -677,7 +712,6 @@ async function playSelected() {
   }
 
   showScorePopup(br);
-  pulseTriggeredJokers(br);
 
   const scoringIds = new Set(br.hand.scoringCards.map((c) => c.id));
   let scoringIndex = 0;
@@ -733,7 +767,48 @@ async function playSelected() {
     }
   }
 
-  const totalAt = firstDelay + Math.max(0, scoringIndex - 1) * stagger + 0.55;
+  const cardsEndAt = firstDelay + Math.max(0, scoringIndex - 1) * stagger + 0.4;
+  const jokerSteps = br.steps.filter((step) => step.jokerId);
+  const jokerStagger = 0.34;
+
+  jokerSteps.forEach((step, idx) => {
+    const slot = jokerSlotsEl.querySelector<HTMLElement>(`[data-joker-id="${step.jokerId}"]`);
+    const delay = cardsEndAt + idx * jokerStagger;
+
+    const chipsFrom = runningChips;
+    const multFrom = runningMult;
+    if (step.chipsDelta) runningChips += step.chipsDelta;
+    if (step.multDelta) runningMult += step.multDelta;
+    if (step.multMul) runningMult *= step.multMul;
+    const chipsTo = runningChips;
+    const multTo = runningMult;
+
+    gsap.delayedCall(delay, () => {
+      if (slot) {
+        gsap.fromTo(
+          slot,
+          { scale: 1, y: 0 },
+          { scale: 1.18, y: -8, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' },
+        );
+        spawnSlotScoreFloat(slot, labelsForJokerStep(step));
+      }
+      audio.play('chipTick', { volume: 0.28, pitch: 1.1 + idx * 0.08 });
+
+      if (step.chipsDelta) {
+        tweenNumber(chipsEl, chipsFrom, chipsTo, 0.28, 'chipTick');
+        gsap.fromTo(chipsEl, { scale: 1 }, { scale: 1.2, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
+      }
+      if (step.multDelta || step.multMul) {
+        tweenNumber(multEl, Math.round(multFrom), Math.round(multTo), 0.28, 'multTick');
+        gsap.fromTo(multEl, { scale: 1 }, { scale: 1.25, duration: 0.2, yoyo: true, repeat: 1, ease: 'power2.out' });
+      }
+    });
+  });
+
+  const jokersEndAt = jokerSteps.length > 0
+    ? cardsEndAt + (jokerSteps.length - 1) * jokerStagger + 0.4
+    : cardsEndAt + 0.15;
+  const totalAt = jokersEndAt;
   gsap.delayedCall(totalAt, () => revealScoreTotal(br));
 
   const prev = state.roundScore - br.total;
