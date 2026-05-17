@@ -20,6 +20,7 @@ const MUSIC_MUTE_KEY = 'open-poker:music-muted';
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private sfxLimiter: DynamicsCompressorNode | null = null;
   private musicGain: GainNode | null = null;
   private music: BackgroundMusic | null = null;
   private voices = new Map<string, VoiceDef>();
@@ -82,7 +83,14 @@ class AudioManagerImpl {
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : this.volume;
-      this.master.connect(this.ctx.destination);
+      this.sfxLimiter = this.ctx.createDynamicsCompressor();
+      this.sfxLimiter.threshold.value = -13;
+      this.sfxLimiter.knee.value = 8;
+      this.sfxLimiter.ratio.value = 5;
+      this.sfxLimiter.attack.value = 0.003;
+      this.sfxLimiter.release.value = 0.16;
+      this.master.connect(this.sfxLimiter);
+      this.sfxLimiter.connect(this.ctx.destination);
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = this.musicMuted ? 0 : this.musicVolume;
       this.musicGain.connect(this.ctx.destination);

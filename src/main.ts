@@ -78,6 +78,10 @@ let fpsEstimate = 0;
 // game-over / win overlay so the player can see the score tally first.
 let suppressEndOverlay = false;
 
+function panFromX(x: number): number {
+  return Math.max(-0.7, Math.min(0.7, x / 4.5));
+}
+
 function getOrCreateObject(card: PlayingCard): CardObject {
   let obj = objects.get(card.id);
   if (!obj) {
@@ -86,7 +90,12 @@ function getOrCreateObject(card: PlayingCard): CardObject {
     obj.position.set(6, -2, 1); // spawn from the deck side and fly in
     obj.rotation.y = Math.PI;   // start back-facing
     objects.set(card.id, obj);
-    audio.play('deal', { volume: 0.28, detune: (Math.random() - 0.5) * 200, pitch: 0.95 + Math.random() * 0.1 });
+    audio.play('deal', {
+      volume: 0.27,
+      detune: (Math.random() - 0.5) * 180,
+      pitch: 0.94 + Math.random() * 0.12,
+      pan: (Math.random() - 0.5) * 0.5,
+    });
     gsap.to(obj.rotation, { y: 0, duration: 0.5, delay: 0.05, ease: 'power3.out' });
   }
   return obj;
@@ -437,7 +446,7 @@ async function playSelected() {
           life: 1.0,
           size: 16,
         });
-        audio.play('chipTick', { volume: 0.25, pitch: 1 + idx * 0.08 });
+        audio.play('chipTick', { volume: 0.24, pitch: 1 + idx * 0.08, pan: panFromX(obj.position.x) });
 
         if (delta.chipsDelta !== 0) {
           tweenNumber(chipsEl, chipsFrom, chipsTo, 0.25, 'chipTick');
@@ -488,7 +497,8 @@ async function playSelected() {
 async function discardSelected() {
   if (!state.canDiscard()) return;
   const cards = state.selectedCards();
-  audio.play('sweep');
+  const avgX = cards.reduce((sum, card) => sum + (objects.get(card.id)?.position.x ?? 0), 0) / Math.max(1, cards.length);
+  audio.play('sweep', { pan: panFromX(avgX) });
   for (const card of cards) {
     const obj = objects.get(card.id);
     if (!obj) continue;

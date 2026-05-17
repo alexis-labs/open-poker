@@ -34,6 +34,10 @@ export function attachInteraction(deps: InteractionDeps): () => void {
   let dragOffsetX = 0;
   const DRAG_THRESHOLD = 0.012; // NDC distance before we count as drag
 
+  function panFor(card: CardObject): number {
+    return Math.max(-0.7, Math.min(0.7, card.position.x / 4.5));
+  }
+
   function setNdc(ev: PointerEvent) {
     const rect = dom.getBoundingClientRect();
     ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
@@ -80,7 +84,7 @@ export function attachInteraction(deps: InteractionDeps): () => void {
         } else {
           dragOffsetX = 0;
         }
-        audio.play('flip', { volume: 0.25 });
+        audio.play('flip', { volume: 0.24, pan: panFor(dragging) });
         // lift the card visually
         gsap.to(dragging.position, { y: dragging.baseY + 0.6, z: dragging.baseZ + 0.4, duration: 0.15 });
       }
@@ -103,7 +107,7 @@ export function attachInteraction(deps: InteractionDeps): () => void {
       hovered?.setHover(false);
       hovered = hit;
       hovered?.setHover(true);
-      if (hit) audio.play('click', { volume: 0.12, detune: (Math.random() - 0.5) * 200 });
+      if (hit) audio.play('click', { volume: 0.1, detune: (Math.random() - 0.5) * 160, pan: panFor(hit) });
       dom.style.cursor = hit ? 'pointer' : 'default';
     }
   }
@@ -148,7 +152,10 @@ export function attachInteraction(deps: InteractionDeps): () => void {
       // Treat as click → toggle selection
       const isNowSelected = onToggleSelect(pressed.card.id);
       pressed.setSelected(isNowSelected);
-      audio.play(isNowSelected ? 'select' : 'deselect', { detune: (Math.random() - 0.5) * 80 });
+      audio.play(isNowSelected ? 'select' : 'deselect', {
+        detune: (Math.random() - 0.5) * 70,
+        pan: panFor(pressed),
+      });
       pressed = null;
     }
   }
