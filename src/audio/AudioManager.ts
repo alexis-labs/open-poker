@@ -5,6 +5,7 @@
 
 import * as Synth from './synth';
 import type { SynthFn, SynthOpts } from './synth';
+import { BackgroundMusic } from './musicEngine';
 
 interface VoiceDef {
   synth?: SynthFn;
@@ -12,21 +13,28 @@ interface VoiceDef {
   buffer?: AudioBuffer; // decoded sample, lazy
 }
 
-const MUTE_KEY = 'open-poker:muted';
-const VOL_KEY  = 'open-poker:volume';
+const MUTE_KEY       = 'open-poker:muted';
+const VOL_KEY        = 'open-poker:volume';
+const MUSIC_MUTE_KEY = 'open-poker:music-muted';
 
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private music: BackgroundMusic | null = null;
   private voices = new Map<string, VoiceDef>();
   private unlocked = false;
   private muted = false;
   private volume = 0.7;
   private mutedListeners = new Set<(m: boolean) => void>();
+  private musicMuted = false;
+  private readonly musicVolume = 0.06;
+  private musicMutedListeners = new Set<(m: boolean) => void>();
 
   constructor() {
     try {
-      this.muted  = localStorage.getItem(MUTE_KEY) === '1';
+      this.muted       = localStorage.getItem(MUTE_KEY) === '1';
+      this.musicMuted  = localStorage.getItem(MUSIC_MUTE_KEY) === '1';
       const v = localStorage.getItem(VOL_KEY);
       if (v) this.volume = Math.max(0, Math.min(1, parseFloat(v)));
     } catch { /* private mode */ }
@@ -75,6 +83,9 @@ class AudioManagerImpl {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : this.volume;
       this.master.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = this.musicMuted ? 0 : this.musicVolume;
+      this.musicGain.connect(this.ctx.destination);
     } catch {
       return null;
     }
@@ -86,6 +97,10 @@ class AudioManagerImpl {
     if (!ctx) return;
     if (ctx.state === 'suspended') void ctx.resume();
     this.unlocked = true;
+    if (!this.music && this.musicGain) {
+      this.music = new BackgroundMusic(ctx, this.musicGain);
+      this.music.start();
+    }
   }
 
   play(name: string, opts: SynthOpts = {}) {
@@ -153,6 +168,25 @@ class AudioManagerImpl {
   onMutedChange(fn: (m: boolean) => void): () => void {
     this.mutedListeners.add(fn);
     return () => this.mutedListeners.delete(fn);
+  }
+
+  setMusicMuted(m: boolean) {
+    this.musicMuted = m;
+    try { localStorage.setItem(MUSIC_MUTE_KEY, m ? '1' : '0'); } catch {}
+    if (this.musicGain) this.musicGain.gain.value = m ? 0 : this.musicVolume;
+    for (const fn of this.musicMutedListeners) fn(m);
+  }
+
+  toggleMusicMute() {
+    this.setMusicMuted(!this.musicMuted);
+    return this.musicMuted;
+  }
+
+  isMusicMuted() { return this.musicMuted; }
+
+  onMusicMutedChange(fn: (m: boolean) => void): () => void {
+    this.musicMutedListeners.add(fn);
+    return () => this.musicMutedListeners.delete(fn);
   }
 }
 

@@ -279,7 +279,7 @@ export function layoutPlay(count: number): { x: number; y: number; z: number; ro
   const startX = -totalW / 2;
   return Array.from({ length: count }, (_, i) => ({
     x: startX + i * spacing,
-    y: 0,
+    y: 0.7,
     z: 0,
     rotZ: 0,
   }));

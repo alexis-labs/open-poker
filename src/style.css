@@ -448,42 +448,36 @@ canvas { display: block; }
    --------------------------------------------------------- */
 .score-popup {
   position: absolute;
-  top: 36%;
+  top: 26%;
   left: 50%;
   transform: translate(-50%, -50%);
   background: var(--panel);
-  border: 3px solid #000;
-  border-radius: 14px;
-  padding: 18px 28px;
+  border: 2px solid #000;
+  border-radius: 10px;
+  padding: 8px 16px;
   text-align: center;
   z-index: 6;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 2px var(--panel-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), inset 0 0 0 2px var(--panel-border);
   pointer-events: none;
-  min-width: 320px;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .score-popup.hidden { display: none; }
 .popup-hand {
   font-family: "Silkscreen", monospace;
-  font-size: 20px;
+  font-size: 16px;
   color: var(--gold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-shadow: 0 2px 0 #000;
 }
-.popup-row {
-  margin: 14px 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-.big-pill { font-size: 42px; padding: 10px 18px; }
-.big-pill .num { font-size: 42px; }
 .popup-total {
   font-family: "Silkscreen", monospace;
-  font-size: 48px;
+  font-size: 28px;
   color: var(--gold);
-  text-shadow: 0 3px 0 #000, 0 0 18px rgba(255, 210, 74, 0.55);
+  text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 210, 74, 0.55);
   font-variant-numeric: tabular-nums;
 }
 
@@ -557,6 +551,9 @@ canvas { display: block; }
 .mute-btn:active {
   transform: translateY(2px);
   box-shadow: 0 2px 0 #000, inset 0 0 0 1px var(--panel-border);
+}
+.music-mute-btn {
+  bottom: 64px;
 }
 
 /* ---------------------------------------------------------

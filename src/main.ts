@@ -58,8 +58,6 @@ const btnPlay = $<HTMLButtonElement>('btn-play');
 const btnDiscard = $<HTMLButtonElement>('btn-discard');
 const popup = $('score-popup');
 const popupHand = $('popup-hand');
-const popupChips = $('popup-chips');
-const popupMult = $('popup-mult');
 const popupTotal = $('popup-total');
 const overlay = $('overlay');
 const overlayTitle = $('overlay-title');
@@ -76,6 +74,9 @@ const sceneHandle = createScene(host);
 const objects = new Map<string, CardObject>();
 let debugVisible = false;
 let fpsEstimate = 0;
+// While the end-of-hand scoring animation is running we suppress the
+// game-over / win overlay so the player can see the score tally first.
+let suppressEndOverlay = false;
 
 function getOrCreateObject(card: PlayingCard): CardObject {
   let obj = objects.get(card.id);
@@ -198,7 +199,7 @@ function updateHud() {
   btnPlay.disabled = !state.canPlay();
   btnDiscard.disabled = !state.canDiscard();
 
-  if (state.phase === 'game-over' || state.phase === 'win') {
+  if ((state.phase === 'game-over' || state.phase === 'win') && !suppressEndOverlay) {
     const wasHidden = overlay.classList.contains('hidden');
     overlay.classList.remove('hidden');
     overlayTitle.textContent = state.phase === 'win' ? 'You Win!' : 'Game Over';
@@ -241,14 +242,15 @@ function tweenNumber(el: HTMLElement, from: number, to: number, duration: number
 function showScorePopup(br: ScoreBreakdown) {
   popup.classList.remove('hidden');
   popupHand.textContent = `${br.hand.type}`;
-  popupChips.textContent = Math.round(br.baseChips).toLocaleString();
-  popupMult.textContent = Math.round(br.baseMult).toLocaleString();
+  // Seed sidebar chips/mult with the base values so the counter animates there.
+  chipsEl.textContent = Math.round(br.baseChips).toLocaleString();
+  multEl.textContent = Math.round(br.baseMult).toLocaleString();
   popupTotal.textContent = '0';
 
   gsap.fromTo(
     popup,
-    { scale: 0.5, opacity: 0 },
-    { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)' },
+    { scale: 0.7, opacity: 0 },
+    { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(2)' },
   );
   gsap.fromTo(popupHand, { scale: 0.7 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' });
   audio.play('scorePop');
@@ -369,6 +371,14 @@ async function playSelected() {
   const br = state.playSelected();
   if (!br) return;
 
+  // If this play ended the run, hide the overlay until the score animation
+  // finishes so the player sees the chips x mult tally first.
+  const endsRun = state.phase === 'game-over' || state.phase === 'win';
+  if (endsRun) {
+    suppressEndOverlay = true;
+    overlay.classList.add('hidden');
+  }
+
   showScorePopup(br);
 
   const scoringIds = new Set(br.hand.scoringCards.map((c) => c.id));
@@ -409,12 +419,12 @@ async function playSelected() {
         audio.play('chipTick', { volume: 0.25, pitch: 1 + idx * 0.08 });
 
         if (delta.chipsDelta !== 0) {
-          tweenNumber(popupChips, chipsFrom, chipsTo, 0.25, 'chipTick');
-          gsap.fromTo(popupChips, { scale: 1 }, { scale: 1.18, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' });
+          tweenNumber(chipsEl, chipsFrom, chipsTo, 0.25, 'chipTick');
+          gsap.fromTo(chipsEl, { scale: 1 }, { scale: 1.18, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' });
         }
         if (delta.multDelta !== 0 || delta.multMul !== 1) {
-          tweenNumber(popupMult, Math.round(multFrom), Math.round(multTo), 0.25, 'multTick');
-          gsap.fromTo(popupMult, { scale: 1 }, { scale: 1.22, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
+          tweenNumber(multEl, Math.round(multFrom), Math.round(multTo), 0.25, 'multTick');
+          gsap.fromTo(multEl, { scale: 1 }, { scale: 1.22, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' });
         }
       });
     } else {
@@ -447,6 +457,10 @@ async function playSelected() {
     }
     reflowHand(0.5);
     updateHud();
+    if (endsRun) {
+      suppressEndOverlay = false;
+      updateHud();
+    }
   });
 }
 
@@ -501,6 +515,17 @@ if (muteBtn) {
   };
   refreshMute(audio.isMuted());
   audio.onMutedChange(refreshMute);
+}
+
+const musicMuteBtn = maybe<HTMLButtonElement>('btn-music-mute');
+if (musicMuteBtn) {
+  const refreshMusicMute = (muted: boolean) => {
+    musicMuteBtn.textContent = muted ? '🔇' : '🎵';
+    musicMuteBtn.setAttribute('aria-label', muted ? 'Unmute Music' : 'Mute Music');
+  };
+  refreshMusicMute(audio.isMusicMuted());
+  musicMuteBtn.addEventListener('click', () => audio.toggleMusicMute());
+  audio.onMusicMutedChange(refreshMusicMute);
 }
 
 if (debugToggleBtn) {
