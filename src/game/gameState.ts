@@ -2,14 +2,26 @@
 // The renderer subscribes via simple callbacks for now; we can swap to a
 // proper event bus once jokers/triggers are introduced.
 
-import { buildStandardDeck, makeRng, shuffle } from './cards';
+import { buildStandardDeck, makeCard, makeRng, RANK_LABEL, RANKS, shuffle, SUITS } from './cards';
 import { evaluateHand, scoreHand } from './pokerEngine';
 import type {
+  ConsumableCard,
+  ConsumableEffect,
+  Edition,
+  Enhancement,
   HandLevel,
+  JokerCard,
+  JokerEffect,
+  JokerRarity,
   PlayingCard,
   PokerHandType,
   RunPhase,
   RunSnapshot,
+  RunSnapshotV1,
+  RunSnapshotV2,
+  ShopItem,
+  ShopOffer,
+  ShopState,
   ScoreBreakdown,
 } from './types';
 import { HAND_BASE } from './types';
@@ -41,6 +53,99 @@ export const DEFAULT_CONFIG: RunConfig = {
 
 // Ante base targets follow Balatro's curve approximately.
 const ANTE_BASE: number[] = [300, 800, 2000, 5000, 11000, 20000, 35000, 50000];
+export const MAX_JOKERS = 5;
+export const MAX_CONSUMABLES = 2;
+const SHOP_REROLL_BASE_COST = 5;
+
+interface JokerTemplate {
+  key: string;
+  name: string;
+  description: string;
+  rarity: JokerRarity;
+  price: number;
+  effect: JokerEffect;
+}
+
+interface ConsumableTemplate {
+  key: string;
+  name: string;
+  description: string;
+  type: ConsumableCard['type'];
+  price: number;
+  effect: ConsumableEffect;
+}
+
+const JOKER_TEMPLATES: JokerTemplate[] = [
+  {
+    key: 'chip-magnet',
+    name: 'Chip Magnet',
+    description: '+40 chips every hand.',
+    rarity: 'common',
+    price: 5,
+    effect: { kind: 'chips', amount: 40 },
+  },
+  {
+    key: 'red-mult',
+    name: 'Red Mult',
+    description: '+6 Mult every hand.',
+    rarity: 'common',
+    price: 5,
+    effect: { kind: 'mult', amount: 6 },
+  },
+  {
+    key: 'pair-trader',
+    name: 'Pair Trader',
+    description: '+12 Mult on Pair-family hands.',
+    rarity: 'uncommon',
+    price: 6,
+    effect: { kind: 'pair-mult', amount: 12 },
+  },
+  {
+    key: 'flush-spark',
+    name: 'Flush Spark',
+    description: 'x1.5 Mult on Flush hands.',
+    rarity: 'rare',
+    price: 7,
+    effect: { kind: 'flush-mult-mul', amount: 1.5 },
+  },
+  {
+    key: 'opening-act',
+    name: 'Opening Act',
+    description: '+80 chips on the first hand of a blind.',
+    rarity: 'uncommon',
+    price: 6,
+    effect: { kind: 'first-hand-chips', amount: 80 },
+  },
+  {
+    key: 'cashback',
+    name: 'Cashback',
+    description: '+$1 when a blind is cleared.',
+    rarity: 'common',
+    price: 5,
+    effect: { kind: 'economy-clear', amount: 1 },
+  },
+];
+
+const PLANET_HANDS: PokerHandType[] = [
+  'High Card',
+  'Pair',
+  'Two Pair',
+  'Three of a Kind',
+  'Straight',
+  'Flush',
+  'Full House',
+  'Four of a Kind',
+];
+
+const ENHANCEMENT_OFFERS: Enhancement[] = ['bonus', 'mult', 'wild', 'glass', 'steel', 'gold', 'lucky'];
+const EDITION_OFFERS: Edition[] = ['foil', 'holographic', 'polychrome'];
+
+function titleCase(value: string): string {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 function cloneCard(card: PlayingCard): PlayingCard {
   return { ...card };
@@ -48,6 +153,49 @@ function cloneCard(card: PlayingCard): PlayingCard {
 
 function cloneCards(cards: PlayingCard[]): PlayingCard[] {
   return cards.map(cloneCard);
+}
+
+function cloneJoker(joker: JokerCard): JokerCard {
+  return { ...joker, effect: { ...joker.effect } };
+}
+
+function cloneJokers(jokers: JokerCard[]): JokerCard[] {
+  return jokers.map(cloneJoker);
+}
+
+function cloneConsumable(consumable: ConsumableCard): ConsumableCard {
+  return { ...consumable, effect: { ...consumable.effect } };
+}
+
+function cloneConsumables(consumables: ConsumableCard[]): ConsumableCard[] {
+  return consumables.map(cloneConsumable);
+}
+
+function cloneShopItem(item: ShopItem): ShopItem {
+  if (item.kind === 'joker') return { kind: 'joker', joker: cloneJoker(item.joker) };
+  if (item.kind === 'consumable') return { kind: 'consumable', consumable: cloneConsumable(item.consumable) };
+  return {
+    kind: 'playing-card',
+    card: cloneCard(item.card),
+    name: item.name,
+    description: item.description,
+    price: item.price,
+    sellValue: item.sellValue,
+  };
+}
+
+function cloneShop(shop: ShopState | null): ShopState | null {
+  if (!shop) return null;
+  return {
+    visit: shop.visit,
+    rerolls: shop.rerolls,
+    rerollCost: shop.rerollCost,
+    offers: shop.offers.map((offer) => ({
+      id: offer.id,
+      sold: offer.sold,
+      item: cloneShopItem(offer.item),
+    })),
+  };
 }
 
 function makeInitialHandLevels(): Record<PokerHandType, HandLevel> {
@@ -78,6 +226,7 @@ export class GameState {
   blindIndex: 0 | 1 | 2 = 0; // 0 small, 1 big, 2 boss
   money: number;
 
+  ownedDeck: PlayingCard[] = []; // persistent run deck, including purchased cards
   deck: PlayingCard[] = [];      // remaining draw pile
   discardPile: PlayingCard[] = [];
   hand: PlayingCard[] = [];      // current hand on the table
@@ -89,6 +238,10 @@ export class GameState {
   target = 0;
 
   handLevels: Record<PokerHandType, HandLevel>;
+  jokers: JokerCard[] = [];
+  consumables: ConsumableCard[] = [];
+  shop: ShopState | null = null;
+  private shopVisit = 0;
 
   lastScore: ScoreBreakdown | null = null;
 
@@ -102,6 +255,7 @@ export class GameState {
     this.handsLeft = this.config.handsPerRound;
     this.discardsLeft = this.config.discardsPerRound;
     this.handLevels = makeInitialHandLevels();
+    this.ownedDeck = buildStandardDeck();
 
     if (boot) this.startBlind();
   }
@@ -124,16 +278,21 @@ export class GameState {
 
   // ---------- round flow ----------
 
-  startBlind() {
+  private targetForCurrentBlind(): number {
     const blindMult = this.blindIndex === 0 ? 1 : this.blindIndex === 1 ? 1.5 : 2;
-    this.target = Math.round(ANTE_BASE[Math.min(this.ante - 1, ANTE_BASE.length - 1)] * blindMult);
+    return Math.round(ANTE_BASE[Math.min(this.ante - 1, ANTE_BASE.length - 1)] * blindMult);
+  }
+
+  startBlind() {
+    this.target = this.targetForCurrentBlind();
     this.roundScore = 0;
     this.handsLeft = this.config.handsPerRound;
     this.discardsLeft = this.config.discardsPerRound;
-    this.deck = shuffle([...buildStandardDeck()], this.rng);
+    this.deck = shuffle(cloneCards(this.ownedDeck), this.rng);
     this.discardPile = [];
     this.hand = [];
     this.selected.clear();
+    this.shop = null;
     this.drawToFull();
     this.phase = 'play';
     this.emit();
@@ -171,7 +330,12 @@ export class GameState {
     const cards = this.selectedCards();
     const hand = evaluateHand(cards);
     const level = this.handLevels[hand.type];
-    const breakdown = scoreHand(hand, level);
+    const handsLeftBeforePlay = this.handsLeft;
+    const breakdown = scoreHand(hand, level, {
+      jokers: this.jokers,
+      handsLeftBeforePlay,
+      handsPerRound: this.config.handsPerRound,
+    });
 
     this.roundScore += breakdown.total;
     this.handsLeft -= 1;
@@ -209,6 +373,10 @@ export class GameState {
   private onBlindCleared() {
     const reward = 3 + this.blindIndex; // simple placeholder reward
     this.money += reward;
+    this.money += this.jokers.reduce((sum, joker) => (
+      joker.effect.kind === 'economy-clear' ? sum + joker.effect.amount : sum
+    ), 0);
+
     if (this.blindIndex < 2) {
       this.blindIndex = (this.blindIndex + 1) as 0 | 1 | 2;
     } else {
@@ -216,8 +384,249 @@ export class GameState {
       this.ante += 1;
       if (this.ante > 8) { this.phase = 'win'; return; }
     }
-    // For now skip shop and jump to next blind directly.
+
+    this.target = this.targetForCurrentBlind();
+    this.roundScore = 0;
+    this.handsLeft = 0;
+    this.discardsLeft = 0;
+    this.deck = [];
+    this.discardPile = [];
+    this.hand = [];
+    this.selected.clear();
+    this.shop = this.createShopState();
+    this.phase = 'shop';
+  }
+
+  continueFromShop(): boolean {
+    if (this.phase !== 'shop') return false;
     this.startBlind();
+    return true;
+  }
+
+  canBuyOffer(offerId: string): boolean {
+    const offer = this.findOffer(offerId);
+    if (!offer || offer.sold) return false;
+    const price = this.priceForItem(offer.item);
+    if (this.money < price) return false;
+    if (offer.item.kind === 'joker') return this.jokers.length < MAX_JOKERS;
+    if (offer.item.kind === 'consumable') return this.consumables.length < MAX_CONSUMABLES;
+    return true;
+  }
+
+  buyOffer(offerId: string): boolean {
+    const offer = this.findOffer(offerId);
+    if (!offer || !this.canBuyOffer(offerId)) return false;
+
+    const price = this.priceForItem(offer.item);
+    this.money -= price;
+    offer.sold = true;
+
+    if (offer.item.kind === 'joker') {
+      this.jokers.push(cloneJoker(offer.item.joker));
+    } else if (offer.item.kind === 'consumable') {
+      this.consumables.push(cloneConsumable(offer.item.consumable));
+    } else {
+      this.ownedDeck.push(cloneCard(offer.item.card));
+    }
+
+    this.emit();
+    return true;
+  }
+
+  rerollShop(): boolean {
+    if (this.phase !== 'shop' || !this.shop) return false;
+    if (this.money < this.shop.rerollCost) return false;
+    this.money -= this.shop.rerollCost;
+    this.shop.rerolls += 1;
+    this.shop.rerollCost = SHOP_REROLL_BASE_COST + this.shop.rerolls;
+    this.shop.offers = this.createShopOffers(this.shop.visit, this.shop.rerolls);
+    this.emit();
+    return true;
+  }
+
+  sellJoker(jokerId: string): boolean {
+    const idx = this.jokers.findIndex((joker) => joker.id === jokerId);
+    if (idx < 0) return false;
+    const [joker] = this.jokers.splice(idx, 1);
+    this.money += joker.sellValue;
+    this.emit();
+    return true;
+  }
+
+  sellConsumable(consumableId: string): boolean {
+    const idx = this.consumables.findIndex((card) => card.id === consumableId);
+    if (idx < 0) return false;
+    const [card] = this.consumables.splice(idx, 1);
+    this.money += card.sellValue;
+    this.emit();
+    return true;
+  }
+
+  useConsumable(consumableId: string): boolean {
+    const idx = this.consumables.findIndex((card) => card.id === consumableId);
+    if (idx < 0) return false;
+    const [card] = this.consumables.splice(idx, 1);
+    this.applyConsumable(card);
+    this.emit();
+    return true;
+  }
+
+  private createShopState(): ShopState {
+    const visit = ++this.shopVisit;
+    return {
+      visit,
+      offers: this.createShopOffers(visit, 0),
+      rerolls: 0,
+      rerollCost: SHOP_REROLL_BASE_COST,
+    };
+  }
+
+  private createShopOffers(visit: number, rerolls: number): ShopOffer[] {
+    return [
+      this.makeShopOffer(visit, rerolls, 0, this.makeJokerItem()),
+      this.makeShopOffer(visit, rerolls, 1, this.makeJokerItem()),
+      this.makeShopOffer(visit, rerolls, 2, this.makeConsumableItem()),
+      this.makeShopOffer(visit, rerolls, 3, this.makeConsumableItem()),
+      this.makeShopOffer(visit, rerolls, 4, this.makePlayingCardItem()),
+      this.makeShopOffer(visit, rerolls, 5, this.makePlayingCardItem()),
+    ];
+  }
+
+  private makeShopOffer(visit: number, rerolls: number, index: number, item: ShopItem): ShopOffer {
+    return {
+      id: `shop-${visit}-${rerolls}-${index}`,
+      item,
+      sold: false,
+    };
+  }
+
+  private makeJokerItem(): ShopItem {
+    const template = this.pick(JOKER_TEMPLATES);
+    const joker: JokerCard = {
+      ...template,
+      id: this.makeRunId('joker'),
+      sellValue: Math.max(1, Math.floor(template.price / 2)),
+      effect: { ...template.effect },
+    };
+    return { kind: 'joker', joker };
+  }
+
+  private makeConsumableItem(): ShopItem {
+    const template = this.makeConsumableTemplate();
+    const consumable: ConsumableCard = {
+      ...template,
+      id: this.makeRunId('consumable'),
+      sellValue: Math.max(1, Math.floor(template.price / 2)),
+      effect: { ...template.effect },
+    };
+    return { kind: 'consumable', consumable };
+  }
+
+  private makeConsumableTemplate(): ConsumableTemplate {
+    const roll = this.rng();
+    if (roll < 0.42) {
+      const handType = this.pick(PLANET_HANDS);
+      return {
+        key: `planet-${handType.toLowerCase().replaceAll(' ', '-')}`,
+        name: `${handType} Planet`,
+        description: `Upgrade ${handType} by 1 level.`,
+        type: 'planet',
+        price: 3,
+        effect: { kind: 'planet', handType },
+      };
+    }
+    if (roll < 0.82) {
+      const enhancement = this.pick(ENHANCEMENT_OFFERS);
+      return {
+        key: `tarot-${enhancement}`,
+        name: `${titleCase(enhancement)} Tarot`,
+        description: `Add ${titleCase(enhancement)} to a random deck card.`,
+        type: 'tarot',
+        price: 4,
+        effect: { kind: 'enhance-card', enhancement },
+      };
+    }
+    const edition = this.pick(EDITION_OFFERS);
+    return {
+      key: `spectral-${edition}`,
+      name: `${titleCase(edition)} Spectral`,
+      description: `Add ${titleCase(edition)} to a random deck card.`,
+      type: 'spectral',
+      price: 5,
+      effect: { kind: 'edition-card', edition },
+    };
+  }
+
+  private makePlayingCardItem(): ShopItem {
+    const suit = this.pick(SUITS);
+    const rank = this.pick(RANKS);
+    const enhancement = this.pick(ENHANCEMENT_OFFERS);
+    const card = makeCard(suit, rank);
+    card.enhancement = enhancement;
+    if (enhancement === 'stone') card.baseChips = 50;
+    const editionRoll = this.rng();
+    if (editionRoll > 0.82) card.edition = this.pick(EDITION_OFFERS);
+    const name = `${RANK_LABEL[rank]} of ${titleCase(suit)}${card.edition !== 'base' ? ` (${titleCase(card.edition)})` : ''}`;
+    return {
+      kind: 'playing-card',
+      card,
+      name,
+      description: `Add a ${titleCase(enhancement)} card to your deck.`,
+      price: card.edition === 'base' ? 4 : 6,
+      sellValue: 1,
+    };
+  }
+
+  private findOffer(offerId: string): ShopOffer | null {
+    return this.shop?.offers.find((offer) => offer.id === offerId) ?? null;
+  }
+
+  private priceForItem(item: ShopItem): number {
+    if (item.kind === 'joker') return item.joker.price;
+    if (item.kind === 'consumable') return item.consumable.price;
+    return item.price;
+  }
+
+  private applyConsumable(card: ConsumableCard) {
+    const effect = card.effect;
+    if (effect.kind === 'planet') {
+      this.upgradeHandLevel(effect.handType);
+      return;
+    }
+    if (effect.kind === 'enhance-card') {
+      const target = this.pickOwnedDeckCard((c) => c.enhancement === 'none') ?? this.pickOwnedDeckCard();
+      if (!target) return;
+      target.enhancement = effect.enhancement;
+      if (effect.enhancement === 'stone') target.baseChips = 50;
+      return;
+    }
+    const target = this.pickOwnedDeckCard((c) => c.edition === 'base') ?? this.pickOwnedDeckCard();
+    if (!target) return;
+    target.edition = effect.edition;
+  }
+
+  private upgradeHandLevel(type: PokerHandType) {
+    const base = HAND_BASE[type];
+    const next = this.handLevels[type].level + 1;
+    this.handLevels[type] = {
+      level: next,
+      chips: base.chips + base.chipsPerLvl * (next - 1),
+      mult: base.mult + base.multPerLvl * (next - 1),
+    };
+  }
+
+  private pickOwnedDeckCard(predicate?: (card: PlayingCard) => boolean): PlayingCard | null {
+    const candidates = predicate ? this.ownedDeck.filter(predicate) : this.ownedDeck;
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(this.rng() * candidates.length)];
+  }
+
+  private pick<T>(items: readonly T[]): T {
+    return items[Math.floor(this.rng() * items.length)];
+  }
+
+  private makeRunId(prefix: string): string {
+    return `${prefix}-${this.rngDrawCount}-${Math.floor(this.rng() * 1_000_000)}`;
   }
 
   reset(seedOrSnapshot?: number | RunSnapshot) {
@@ -234,6 +643,11 @@ export class GameState {
     this.ante = 1;
     this.blindIndex = 0;
     this.money = this.config.startingMoney;
+    this.ownedDeck = buildStandardDeck();
+    this.jokers = [];
+    this.consumables = [];
+    this.shop = null;
+    this.shopVisit = 0;
     this.handLevels = makeInitialHandLevels();
     this.lastScore = null;
     this.startBlind();
@@ -241,13 +655,14 @@ export class GameState {
 
   toSnapshot(): RunSnapshot {
     return {
-      version: 1,
+      version: 2,
       config: { ...this.config },
       rngDrawCount: this.rngDrawCount,
       phase: this.phase,
       ante: this.ante,
       blindIndex: this.blindIndex,
       money: this.money,
+      ownedDeck: cloneCards(this.ownedDeck),
       deck: cloneCards(this.deck),
       discardPile: cloneCards(this.discardPile),
       hand: cloneCards(this.hand),
@@ -257,30 +672,66 @@ export class GameState {
       roundScore: this.roundScore,
       target: this.target,
       handLevels: cloneHandLevels(this.handLevels),
+      jokers: cloneJokers(this.jokers),
+      consumables: cloneConsumables(this.consumables),
+      shop: cloneShop(this.shop),
     };
   }
 
   loadSnapshot(snapshot: RunSnapshot) {
-    if (snapshot.version !== 1) {
-      throw new Error(`Unsupported snapshot version: ${snapshot.version}`);
+    const version = (snapshot as { version?: number }).version;
+    if (version !== 1 && version !== 2) {
+      throw new Error(`Unsupported snapshot version: ${version}`);
     }
+    const next = this.normalizeSnapshot(snapshot);
 
-    this.config = { ...snapshot.config };
-    this.rng = this.createTrackedRng(snapshot.config.seed, snapshot.rngDrawCount);
-    this.phase = snapshot.phase;
-    this.ante = snapshot.ante;
-    this.blindIndex = snapshot.blindIndex;
-    this.money = snapshot.money;
-    this.deck = cloneCards(snapshot.deck);
-    this.discardPile = cloneCards(snapshot.discardPile);
-    this.hand = cloneCards(snapshot.hand);
-    this.selected = new Set(snapshot.selected);
-    this.handsLeft = snapshot.handsLeft;
-    this.discardsLeft = snapshot.discardsLeft;
-    this.roundScore = snapshot.roundScore;
-    this.target = snapshot.target;
-    this.handLevels = cloneHandLevels(snapshot.handLevels);
+    this.config = { ...next.config };
+    this.rng = this.createTrackedRng(next.config.seed, next.rngDrawCount);
+    this.phase = next.phase;
+    this.ante = next.ante;
+    this.blindIndex = next.blindIndex;
+    this.money = next.money;
+    this.ownedDeck = cloneCards(next.ownedDeck);
+    this.deck = cloneCards(next.deck);
+    this.discardPile = cloneCards(next.discardPile);
+    this.hand = cloneCards(next.hand);
+    this.selected = new Set(next.selected);
+    this.handsLeft = next.handsLeft;
+    this.discardsLeft = next.discardsLeft;
+    this.roundScore = next.roundScore;
+    this.target = next.target;
+    this.handLevels = cloneHandLevels(next.handLevels);
+    this.jokers = cloneJokers(next.jokers);
+    this.consumables = cloneConsumables(next.consumables);
+    this.shop = cloneShop(next.shop);
+    this.shopVisit = next.shop?.visit ?? this.completedShopCount();
     this.lastScore = null;
+  }
+
+  private normalizeSnapshot(snapshot: RunSnapshot): RunSnapshotV2 {
+    if (snapshot.version === 2) return snapshot;
+
+    const legacy = snapshot as RunSnapshotV1;
+    const combined = [...legacy.deck, ...legacy.discardPile, ...legacy.hand];
+    const seen = new Set<string>();
+    const ownedDeck = combined.filter((card) => {
+      if (seen.has(card.id)) return false;
+      seen.add(card.id);
+      return true;
+    });
+
+    return {
+      ...legacy,
+      version: 2,
+      ownedDeck: ownedDeck.length > 0 ? ownedDeck : buildStandardDeck(),
+      jokers: [],
+      consumables: [],
+      shop: null,
+    };
+  }
+
+  private completedShopCount(): number {
+    return Math.max(0, (this.ante - 1) * 3 + this.blindIndex);
   }
 
   private createTrackedRng(seed: number, drawCount = 0): () => number {

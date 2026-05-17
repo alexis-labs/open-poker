@@ -6,12 +6,19 @@
 import type {
   EvaluatedHand,
   HandLevel,
+  JokerCard,
   PlayingCard,
   Rank,
   ScoreBreakdown,
   ScoreStep,
 } from './types';
 import { HAND_BASE } from './types';
+
+export interface ScoreHandOptions {
+  jokers?: JokerCard[];
+  handsLeftBeforePlay?: number;
+  handsPerRound?: number;
+}
 
 interface RankGroup {
   rank: Rank;
@@ -138,6 +145,7 @@ export function evaluateHand(played: PlayingCard[]): EvaluatedHand {
 export function scoreHand(
   hand: EvaluatedHand,
   level: HandLevel,
+  options: ScoreHandOptions = {},
 ): ScoreBreakdown {
   const base = HAND_BASE[hand.type];
   const lvl = Math.max(1, level.level);
@@ -184,6 +192,15 @@ export function scoreHand(
     }
   }
 
+  for (const joker of options.jokers ?? []) {
+    const step = applyJoker(joker, hand, options);
+    if (!step) continue;
+    if (step.chipsDelta) chips += step.chipsDelta;
+    if (step.multDelta) mult += step.multDelta;
+    if (step.multMul) mult *= step.multMul;
+    steps.push(step);
+  }
+
   const total = Math.round(chips * mult);
   return {
     hand,
@@ -194,6 +211,44 @@ export function scoreHand(
     total,
     steps,
   };
+}
+
+function applyJoker(
+  joker: JokerCard,
+  hand: EvaluatedHand,
+  options: ScoreHandOptions,
+): ScoreStep | null {
+  const effect = joker.effect;
+  if (effect.kind === 'chips') {
+    return { source: `${joker.name} +${effect.amount} chips`, chipsDelta: effect.amount, jokerId: joker.id };
+  }
+  if (effect.kind === 'mult') {
+    return { source: `${joker.name} +${effect.amount} Mult`, multDelta: effect.amount, jokerId: joker.id };
+  }
+  if (effect.kind === 'pair-mult') {
+    if (!isPairFamily(hand.type)) return null;
+    return { source: `${joker.name} +${effect.amount} Mult`, multDelta: effect.amount, jokerId: joker.id };
+  }
+  if (effect.kind === 'flush-mult-mul') {
+    if (!hand.type.includes('Flush')) return null;
+    return { source: `${joker.name} x${effect.amount} Mult`, multMul: effect.amount, jokerId: joker.id };
+  }
+  if (effect.kind === 'first-hand-chips') {
+    if (options.handsLeftBeforePlay !== options.handsPerRound) return null;
+    return { source: `${joker.name} +${effect.amount} chips`, chipsDelta: effect.amount, jokerId: joker.id };
+  }
+  return null;
+}
+
+function isPairFamily(type: EvaluatedHand['type']): boolean {
+  return type === 'Pair'
+    || type === 'Two Pair'
+    || type === 'Three of a Kind'
+    || type === 'Full House'
+    || type === 'Four of a Kind'
+    || type === 'Five of a Kind'
+    || type === 'Flush House'
+    || type === 'Flush Five';
 }
 
 function labelShort(c: PlayingCard): string {

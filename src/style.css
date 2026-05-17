@@ -107,8 +107,24 @@ canvas { display: block; }
 .joker-slot.filled {
   background:
     radial-gradient(circle at 50% 30%, #f6c54a 0%, #e08a2a 55%, #6b3a14 100%);
+  display: grid;
+  place-items: center;
+  color: #2a1306;
+  font-family: "Silkscreen", monospace;
+  font-size: 16px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.joker-slot.filled::after { border: none; }
+.consumable-slot.filled {
+  background:
+    radial-gradient(circle at 50% 26%, #7ee4ff 0%, #4b77d8 48%, #28195d 100%);
+  display: grid;
+  place-items: center;
+  color: #f9f5ff;
+  font-family: "Silkscreen", monospace;
+  font-size: 13px;
+  text-shadow: 0 2px 0 #000;
+}
+.joker-slot.filled::after, .consumable-slot.filled::after { border: none; }
 
 .slot-count {
   font-family: "Silkscreen", monospace;
@@ -467,6 +483,209 @@ canvas { display: block; }
 .score-popup.hidden { display: none; }
 
 /* ---------------------------------------------------------
+   Shop overlay
+   --------------------------------------------------------- */
+.shop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(255, 210, 74, 0.16), transparent 34%),
+    rgba(4, 6, 5, 0.74);
+  backdrop-filter: blur(7px);
+}
+.shop-overlay.hidden { display: none; }
+
+.shop-panel {
+  width: min(1040px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel);
+  border: 3px solid #000;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow:
+    0 12px 0 #000,
+    0 22px 46px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 2px var(--panel-border);
+}
+
+.shop-header,
+.shop-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shop-kicker {
+  font-family: "Silkscreen", monospace;
+  font-size: 13px;
+  color: var(--chips);
+  text-transform: uppercase;
+}
+.shop-header h2 {
+  margin: 0;
+  font-family: "Silkscreen", monospace;
+  font-size: 34px;
+  color: var(--gold);
+  text-shadow: 0 3px 0 #000;
+}
+.shop-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.shop-money,
+.shop-next-blind {
+  font-family: "Silkscreen", monospace;
+  border: 2px solid #000;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--panel-3);
+  box-shadow: 0 4px 0 #000, inset 0 0 0 1px #4a382a;
+}
+.shop-money { color: var(--gold); }
+.shop-next-blind { color: var(--chips); }
+
+.shop-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  min-height: 0;
+}
+.shop-offers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.shop-offer {
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: linear-gradient(180deg, #2d241d, #17100d);
+  border: 2px solid #000;
+  border-radius: 10px;
+  box-shadow: 0 5px 0 #000, inset 0 0 0 1px #4a382a;
+}
+.shop-offer.joker { box-shadow: 0 5px 0 #000, inset 0 0 0 2px rgba(255, 210, 74, 0.45); }
+.shop-offer.consumable { box-shadow: 0 5px 0 #000, inset 0 0 0 2px rgba(91, 184, 255, 0.45); }
+.shop-offer.playing-card { box-shadow: 0 5px 0 #000, inset 0 0 0 2px rgba(74, 208, 106, 0.42); }
+.shop-offer.sold { opacity: 0.48; }
+.shop-offer-kind {
+  align-self: flex-start;
+  font-family: "Silkscreen", monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.shop-offer h3 {
+  margin: 0;
+  font-family: "Silkscreen", monospace;
+  font-size: 17px;
+  color: #ffe8a8;
+  line-height: 1.1;
+}
+.shop-offer p {
+  margin: 0;
+  flex: 1;
+  color: var(--text-dim);
+  font-size: 19px;
+  line-height: 1.05;
+}
+.shop-buy-btn,
+.shop-mini-btn {
+  font-family: "Silkscreen", monospace;
+  color: #fff;
+  border: 2px solid #000;
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  box-shadow: 0 4px 0 #000, inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.shop-buy-btn {
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #4ad06a, #1d7a36);
+}
+.shop-buy-btn:disabled,
+.shop-mini-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.shop-inventory {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.shop-inventory-group {
+  background: var(--panel-2);
+  border: 2px solid #000;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: inset 0 0 0 1px #4a382a;
+}
+.shop-inventory-title {
+  font-family: "Silkscreen", monospace;
+  font-size: 13px;
+  color: var(--gold);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.shop-inventory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.shop-inventory-row {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  color: var(--muted);
+  background: var(--panel-3);
+  border: 2px solid #000;
+  border-radius: 8px;
+}
+.shop-inventory-row.filled { color: var(--text); }
+.shop-inventory-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shop-inventory-copy strong {
+  font-family: "Silkscreen", monospace;
+  font-size: 11px;
+  color: #ffe8a8;
+}
+.shop-inventory-copy span {
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1.05;
+}
+.shop-mini-btn {
+  flex: 0 0 auto;
+  padding: 7px 8px;
+  font-size: 10px;
+  background: linear-gradient(180deg, #6a5444, #3a2a1f);
+}
+.shop-mini-btn.use {
+  background: linear-gradient(180deg, #5bb8ff, #1d5fa3);
+}
+.shop-footer {
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------
    Floating card score (+chips / +mult / ×mult above the card)
    --------------------------------------------------------- */
 .card-score-float {
@@ -545,6 +764,17 @@ canvas { display: block; }
 @media (max-width: 1100px) {
   .sidebar { width: 220px; }
   .hud-top { left: 244px; }
+  .shop-body { grid-template-columns: 1fr; overflow: auto; }
+  .shop-offers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shop-inventory { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 720px) {
+  .shop-overlay { padding: 12px; }
+  .shop-panel { width: calc(100vw - 24px); padding: 12px; }
+  .shop-header, .shop-footer { align-items: stretch; flex-direction: column; }
+  .shop-offers { grid-template-columns: 1fr; }
+  .shop-inventory { grid-template-columns: 1fr; }
 }
 
 /* ---------------------------------------------------------

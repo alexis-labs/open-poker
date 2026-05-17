@@ -196,6 +196,17 @@ class AudioManagerImpl {
     this.musicMutedListeners.add(fn);
     return () => this.musicMutedListeners.delete(fn);
   }
+
+  dispose() {
+    this.music?.stop();
+    this.music = null;
+    try { void this.ctx?.close(); } catch {}
+    this.ctx = null;
+    this.master = null;
+    this.sfxLimiter = null;
+    this.musicGain = null;
+    this.unlocked = false;
+  }
 }
 
 export const audio = new AudioManagerImpl();

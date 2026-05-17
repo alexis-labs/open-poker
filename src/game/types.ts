@@ -97,9 +97,67 @@ export interface ScoreStep {
   chipsDelta?: number;
   multDelta?: number;
   multMul?: number;
+  jokerId?: string;
 }
 
 export type RunPhase = 'blind-select' | 'play' | 'shop' | 'game-over' | 'win';
+
+export type JokerRarity = 'common' | 'uncommon' | 'rare';
+
+export type JokerEffect =
+  | { kind: 'chips'; amount: number }
+  | { kind: 'mult'; amount: number }
+  | { kind: 'pair-mult'; amount: number }
+  | { kind: 'flush-mult-mul'; amount: number }
+  | { kind: 'first-hand-chips'; amount: number }
+  | { kind: 'economy-clear'; amount: number };
+
+export interface JokerCard {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  rarity: JokerRarity;
+  price: number;
+  sellValue: number;
+  effect: JokerEffect;
+}
+
+export type ConsumableType = 'planet' | 'tarot' | 'spectral';
+
+export type ConsumableEffect =
+  | { kind: 'planet'; handType: PokerHandType }
+  | { kind: 'enhance-card'; enhancement: Enhancement }
+  | { kind: 'edition-card'; edition: Edition };
+
+export interface ConsumableCard {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  type: ConsumableType;
+  price: number;
+  sellValue: number;
+  effect: ConsumableEffect;
+}
+
+export type ShopItem =
+  | { kind: 'joker'; joker: JokerCard }
+  | { kind: 'consumable'; consumable: ConsumableCard }
+  | { kind: 'playing-card'; card: PlayingCard; name: string; description: string; price: number; sellValue: number };
+
+export interface ShopOffer {
+  id: string;
+  item: ShopItem;
+  sold: boolean;
+}
+
+export interface ShopState {
+  visit: number;
+  offers: ShopOffer[];
+  rerolls: number;
+  rerollCost: number;
+}
 
 export interface RunConfigSnapshot {
   seed: number;
@@ -109,7 +167,7 @@ export interface RunConfigSnapshot {
   startingMoney: number;
 }
 
-export interface RunSnapshot {
+export interface RunSnapshotV1 {
   version: 1;
   config: RunConfigSnapshot;
   rngDrawCount: number;
@@ -128,9 +186,35 @@ export interface RunSnapshot {
   handLevels: Record<PokerHandType, HandLevel>;
 }
 
+export interface RunSnapshotV2 {
+  version: 2;
+  config: RunConfigSnapshot;
+  rngDrawCount: number;
+  phase: RunPhase;
+  ante: number;
+  blindIndex: 0 | 1 | 2;
+  money: number;
+  ownedDeck: PlayingCard[];
+  deck: PlayingCard[];
+  discardPile: PlayingCard[];
+  hand: PlayingCard[];
+  selected: string[];
+  handsLeft: number;
+  discardsLeft: number;
+  roundScore: number;
+  target: number;
+  handLevels: Record<PokerHandType, HandLevel>;
+  jokers: JokerCard[];
+  consumables: ConsumableCard[];
+  shop: ShopState | null;
+}
+
+export type RunSnapshot = RunSnapshotV1 | RunSnapshotV2;
+
 export type InputAction =
   | 'select_card'
   | 'play_hand'
   | 'discard'
+  | 'continue_shop'
   | 'restart_run'
   | 'toggle_mute';

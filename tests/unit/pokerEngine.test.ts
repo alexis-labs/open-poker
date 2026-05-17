@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { evaluateHand, scoreHand } from '../../src/game/pokerEngine';
-import type { HandLevel, PokerHandType } from '../../src/game/types';
+import type { HandLevel, JokerCard, PokerHandType } from '../../src/game/types';
 import { makeCard, resetTestCardIds } from '../helpers/cards';
 
 describe('evaluateHand', () => {
@@ -257,5 +257,88 @@ describe('scoreHand', () => {
     expect(score.steps.length).toBeGreaterThan(1);
     expect(score.steps.some((step) => step.chipsDelta === 30)).toBe(true);
     expect(score.steps.some((step) => step.chipsDelta === 50)).toBe(true);
+  });
+
+  it('applies conditional joker scoring effects', () => {
+    const level: HandLevel = { level: 1, chips: 0, mult: 0 };
+    const pair = evaluateHand([
+      makeCard(7, 'spades'),
+      makeCard(7, 'hearts'),
+      makeCard(3, 'clubs'),
+    ]);
+    const jokers: JokerCard[] = [
+      {
+        id: 'chips',
+        key: 'chips',
+        name: 'Chips',
+        description: '+20 chips',
+        rarity: 'common',
+        price: 1,
+        sellValue: 1,
+        effect: { kind: 'chips', amount: 20 },
+      },
+      {
+        id: 'pair',
+        key: 'pair',
+        name: 'Pair',
+        description: '+8 Mult on pairs',
+        rarity: 'common',
+        price: 1,
+        sellValue: 1,
+        effect: { kind: 'pair-mult', amount: 8 },
+      },
+      {
+        id: 'flush',
+        key: 'flush',
+        name: 'Flush',
+        description: 'x2 on flushes',
+        rarity: 'rare',
+        price: 1,
+        sellValue: 1,
+        effect: { kind: 'flush-mult-mul', amount: 2 },
+      },
+      {
+        id: 'first',
+        key: 'first',
+        name: 'First',
+        description: '+30 chips on the first hand',
+        rarity: 'common',
+        price: 1,
+        sellValue: 1,
+        effect: { kind: 'first-hand-chips', amount: 30 },
+      },
+      {
+        id: 'cash',
+        key: 'cash',
+        name: 'Cash',
+        description: '+$1 on clear',
+        rarity: 'common',
+        price: 1,
+        sellValue: 1,
+        effect: { kind: 'economy-clear', amount: 1 },
+      },
+    ];
+
+    const pairScore = scoreHand(pair, level, {
+      jokers,
+      handsLeftBeforePlay: 4,
+      handsPerRound: 4,
+    });
+    expect(pairScore.steps.map((step) => step.jokerId).filter(Boolean)).toEqual(['chips', 'pair', 'first']);
+
+    const flush = evaluateHand([
+      makeCard(2, 'clubs'),
+      makeCard(4, 'clubs'),
+      makeCard(6, 'clubs'),
+      makeCard(8, 'clubs'),
+      makeCard(10, 'clubs'),
+    ]);
+    const flushScore = scoreHand(flush, level, {
+      jokers,
+      handsLeftBeforePlay: 3,
+      handsPerRound: 4,
+    });
+    expect(flushScore.steps.some((step) => step.jokerId === 'flush')).toBe(true);
+    expect(flushScore.steps.some((step) => step.jokerId === 'first')).toBe(false);
   });
 });

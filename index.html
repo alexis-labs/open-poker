@@ -112,6 +112,33 @@
         <div id="popup-total" class="popup-total">0</div>
       </div>
 
+      <div id="shop-overlay" class="shop-overlay hidden" data-testid="shop-overlay">
+        <section id="shop-panel" class="shop-panel" aria-label="Shop">
+          <header class="shop-header">
+            <div>
+              <div class="shop-kicker">Blind cleared</div>
+              <h2>Shop</h2>
+            </div>
+            <div class="shop-status">
+              <span id="shop-money" class="shop-money">$0</span>
+              <span id="shop-next-blind" class="shop-next-blind">Small Blind</span>
+            </div>
+          </header>
+
+          <div class="shop-body">
+            <div id="shop-offers" class="shop-offers"></div>
+            <aside id="shop-inventory" class="shop-inventory"></aside>
+          </div>
+
+          <footer class="shop-footer">
+            <button id="btn-shop-reroll" class="btn btn-ghost" data-testid="btn-shop-reroll">
+              Reroll <span id="shop-reroll-cost">$5</span>
+            </button>
+            <button id="btn-shop-next" class="btn btn-play" data-testid="btn-shop-next">Next Blind</button>
+          </footer>
+        </section>
+      </div>
+
       <div id="overlay" class="overlay hidden">
         <div class="overlay-card">
           <div id="overlay-title" class="overlay-title">Game Over</div>

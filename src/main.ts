@@ -6,9 +6,9 @@ import './style.css';
 import * as THREE from 'three';
 import gsap from 'gsap';
 
-import { GameState } from './game/gameState';
+import { GameState, MAX_CONSUMABLES, MAX_JOKERS } from './game/gameState';
 import { evaluateHand } from './game/pokerEngine';
-import type { InputAction, PlayingCard, RunSnapshot, ScoreBreakdown } from './game/types';
+import type { ConsumableCard, InputAction, JokerCard, PlayingCard, RunSnapshot, ScoreBreakdown, ShopItem } from './game/types';
 import { createScene, layoutHand, layoutPlay } from './render/ThreeScene';
 import { CardObject } from './render/CardObject';
 import { attachInteraction } from './render/Interaction';
@@ -23,7 +23,14 @@ declare global {
       selectFirst: (count?: number) => void;
       play: () => void;
       discard: () => void;
+      buyOffer: (index?: number) => boolean;
+      rerollShop: () => boolean;
+      continueShop: () => boolean;
+      sellJoker: (index?: number) => boolean;
+      sellConsumable: (index?: number) => boolean;
+      useConsumable: (index?: number) => boolean;
       restart: () => void;
+      dispose: () => void;
     };
   }
 }
@@ -61,6 +68,15 @@ const popupTotal = $('popup-total');
 const overlay = $('overlay');
 const overlayTitle = $('overlay-title');
 const overlaySub = $('overlay-sub');
+const shopOverlay = $('shop-overlay');
+const shopPanel = $('shop-panel');
+const shopOffersEl = $('shop-offers');
+const shopInventoryEl = $('shop-inventory');
+const shopMoneyEl = $('shop-money');
+const shopNextBlindEl = $('shop-next-blind');
+const shopRerollCostEl = $('shop-reroll-cost');
+const btnShopReroll = $<HTMLButtonElement>('btn-shop-reroll');
+const btnShopNext = $<HTMLButtonElement>('btn-shop-next');
 
 // ---------- Engine + Scene ----------
 const state = new GameState();
@@ -71,9 +87,14 @@ const objects = new Map<string, CardObject>();
 // While the end-of-hand scoring animation is running we suppress the
 // game-over / win overlay so the player can see the score tally first.
 let suppressEndOverlay = false;
+let suppressShopOverlay = false;
 // Keep the round score readout visually frozen during score tally animation.
 let isRoundScoreAnimating = false;
 let frozenRoundScore: number | null = null;
+// Lock that prevents card selection and new play/discard actions while a
+// hand or discard animation is in flight. Cleared once reflowHand is called
+// and new cards are visible so the player can interact again.
+let isAnimating = false;
 
 function panFromX(x: number): number {
   return Math.max(-0.7, Math.min(0.7, x / 4.5));
@@ -138,32 +159,203 @@ function reflowHand(duration = 0.4) {
 }
 
 // ---------- HUD ----------
-const MAX_JOKERS = 5;
-const MAX_CONSUMABLES = 2;
+function shortName(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part.charAt(0))
+    .join('')
+    .slice(0, 3)
+    .toUpperCase();
+}
 
-function renderSlotPlaceholders() {
+function renderInventorySlots() {
   jokerSlotsEl.innerHTML = '';
   for (let i = 0; i < MAX_JOKERS; i++) {
     const slot = document.createElement('div');
-    slot.className = 'joker-slot';
+    const joker = state.jokers[i];
+    slot.className = `joker-slot${joker ? ' filled' : ''}`;
+    if (joker) {
+      slot.dataset.jokerId = joker.id;
+      slot.textContent = shortName(joker.name);
+      slot.title = `${joker.name} - ${joker.description}`;
+    }
     jokerSlotsEl.appendChild(slot);
   }
 
   consumableSlotsEl.innerHTML = '';
   for (let i = 0; i < MAX_CONSUMABLES; i++) {
     const slot = document.createElement('div');
-    slot.className = 'consumable-slot';
+    const consumable = state.consumables[i];
+    slot.className = `consumable-slot${consumable ? ' filled' : ''}`;
+    if (consumable) {
+      slot.dataset.consumableId = consumable.id;
+      slot.textContent = shortName(consumable.name);
+      slot.title = `${consumable.name} - ${consumable.description}`;
+    }
     consumableSlotsEl.appendChild(slot);
   }
 }
-renderSlotPlaceholders();
+renderInventorySlots();
 
 const BLIND_LABELS = ['Small Blind', 'Big Blind', 'Boss Blind'] as const;
 const BLIND_BADGE_TEXT = ['SMALL<br/>BLIND', 'BIG<br/>BLIND', 'BOSS'] as const;
 const BLIND_KIND = ['small', 'big', 'boss'] as const;
 const BLIND_REWARD = ['$', '$$', '$$$$$'] as const;
 
+function shopItemName(item: ShopItem): string {
+  if (item.kind === 'joker') return item.joker.name;
+  if (item.kind === 'consumable') return item.consumable.name;
+  return item.name;
+}
+
+function shopItemDescription(item: ShopItem): string {
+  if (item.kind === 'joker') return item.joker.description;
+  if (item.kind === 'consumable') return item.consumable.description;
+  return item.description;
+}
+
+function shopItemPrice(item: ShopItem): number {
+  if (item.kind === 'joker') return item.joker.price;
+  if (item.kind === 'consumable') return item.consumable.price;
+  return item.price;
+}
+
+function shopItemKindLabel(item: ShopItem): string {
+  if (item.kind === 'playing-card') return 'Deck Card';
+  return item.kind;
+}
+
+function renderShopCardInventory<T extends JokerCard | ConsumableCard>(
+  cards: T[],
+  max: number,
+  type: 'joker' | 'consumable',
+): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'shop-inventory-group';
+
+  const heading = document.createElement('div');
+  heading.className = 'shop-inventory-title';
+  heading.textContent = `${type === 'joker' ? 'Jokers' : 'Consumables'} ${cards.length}/${max}`;
+  wrap.appendChild(heading);
+
+  const list = document.createElement('div');
+  list.className = 'shop-inventory-list';
+  for (let i = 0; i < max; i++) {
+    const card = cards[i];
+    const row = document.createElement('div');
+    row.className = `shop-inventory-row${card ? ' filled' : ''}`;
+    if (!card) {
+      row.textContent = 'Empty slot';
+      list.appendChild(row);
+      continue;
+    }
+
+    const copy = document.createElement('div');
+    copy.className = 'shop-inventory-copy';
+    copy.innerHTML = `<strong>${card.name}</strong><span>${card.description}</span>`;
+    row.appendChild(copy);
+
+    if (type === 'consumable') {
+      const use = document.createElement('button');
+      use.className = 'shop-mini-btn use';
+      use.textContent = 'Use';
+      use.addEventListener('click', () => {
+        if (state.useConsumable(card.id)) {
+          audio.play('chaching');
+          updateHud();
+        }
+      });
+      row.appendChild(use);
+    }
+
+    const sell = document.createElement('button');
+    sell.className = 'shop-mini-btn';
+    sell.textContent = `Sell $${card.sellValue}`;
+    sell.addEventListener('click', () => {
+      const ok = type === 'joker'
+        ? state.sellJoker(card.id)
+        : state.sellConsumable(card.id);
+      if (ok) {
+        audio.play('buttonClick');
+        updateHud();
+      }
+    });
+    row.appendChild(sell);
+    list.appendChild(row);
+  }
+
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function setShopVisible(visible: boolean) {
+  const wasHidden = shopOverlay.classList.contains('hidden');
+  if (visible) {
+    shopOverlay.classList.remove('hidden');
+    if (wasHidden) {
+      shopOverlay.style.opacity = '1';
+      gsap.fromTo(shopOverlay, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'power2.out' });
+      gsap.fromTo(shopPanel, { y: 24, scale: 0.96 }, { y: 0, scale: 1, duration: 0.38, ease: 'back.out(1.4)' });
+      audio.play('chaching', { volume: 0.35 });
+    }
+  } else {
+    shopOverlay.classList.add('hidden');
+  }
+}
+
+function renderShop() {
+  const visible = state.phase === 'shop' && Boolean(state.shop) && !suppressShopOverlay;
+  setShopVisible(visible);
+  if (!visible || !state.shop) return;
+
+  shopMoneyEl.textContent = `$${state.money}`;
+  shopNextBlindEl.textContent = BLIND_LABELS[state.blindIndex];
+  shopRerollCostEl.textContent = `$${state.shop.rerollCost}`;
+  btnShopReroll.disabled = state.money < state.shop.rerollCost;
+
+  shopOffersEl.innerHTML = '';
+  state.shop.offers.forEach((offer, index) => {
+    const card = document.createElement('article');
+    const canBuy = state.canBuyOffer(offer.id);
+    card.className = `shop-offer ${offer.item.kind}${offer.sold ? ' sold' : ''}`;
+
+    const kind = document.createElement('div');
+    kind.className = 'shop-offer-kind';
+    kind.textContent = shopItemKindLabel(offer.item);
+    card.appendChild(kind);
+
+    const name = document.createElement('h3');
+    name.textContent = shopItemName(offer.item);
+    card.appendChild(name);
+
+    const desc = document.createElement('p');
+    desc.textContent = shopItemDescription(offer.item);
+    card.appendChild(desc);
+
+    const buy = document.createElement('button');
+    buy.className = 'shop-buy-btn';
+    buy.dataset.testid = `shop-buy-${index}`;
+    buy.disabled = offer.sold || !canBuy;
+    buy.textContent = offer.sold ? 'Sold' : `Buy $${shopItemPrice(offer.item)}`;
+    buy.addEventListener('click', () => {
+      if (state.buyOffer(offer.id)) {
+        audio.play('chaching');
+        gsap.fromTo(card, { scale: 1 }, { scale: 1.04, duration: 0.14, yoyo: true, repeat: 1, ease: 'power2.out' });
+        updateHud();
+      }
+    });
+    card.appendChild(buy);
+
+    shopOffersEl.appendChild(card);
+  });
+
+  shopInventoryEl.innerHTML = '';
+  shopInventoryEl.appendChild(renderShopCardInventory(state.jokers, MAX_JOKERS, 'joker'));
+  shopInventoryEl.appendChild(renderShopCardInventory(state.consumables, MAX_CONSUMABLES, 'consumable'));
+}
+
 function updateHud() {
+  renderInventorySlots();
   const idx = state.blindIndex;
   blindName.textContent = BLIND_LABELS[idx];
   blindBadge.className = `blind-badge ${BLIND_KIND[idx]}`;
@@ -183,12 +375,11 @@ function updateHud() {
   seedEl.textContent = String(state.config.seed);
 
   handCounterEl.textContent = `${state.hand.length}/${state.config.handSize}`;
-  deckCounterEl.textContent = `${state.deck.length}/52`;
+  deckCounterEl.textContent = `${state.deck.length}/${state.ownedDeck.length}`;
   sceneHandle.setDeckCount(state.deck.length);
 
-  // Placeholder counters for future systems.
-  jokerCountEl.textContent = `0/${MAX_JOKERS}`;
-  consumableCountEl.textContent = `0/${MAX_CONSUMABLES}`;
+  jokerCountEl.textContent = `${state.jokers.length}/${MAX_JOKERS}`;
+  consumableCountEl.textContent = `${state.consumables.length}/${MAX_CONSUMABLES}`;
 
   const selected = state.selectedCards();
   if (selected.length === 0) {
@@ -203,8 +394,8 @@ function updateHud() {
     multEl.textContent = `${level.mult}`;
   }
 
-  btnPlay.disabled = !state.canPlay();
-  btnDiscard.disabled = !state.canDiscard();
+  btnPlay.disabled = isAnimating || !state.canPlay();
+  btnDiscard.disabled = isAnimating || !state.canDiscard();
 
   if ((state.phase === 'game-over' || state.phase === 'win') && !suppressEndOverlay) {
     const wasHidden = overlay.classList.contains('hidden');
@@ -224,6 +415,7 @@ function updateHud() {
   } else {
     overlay.classList.add('hidden');
   }
+  renderShop();
 }
 
 // ---------- Scoring readout ----------
@@ -361,23 +553,48 @@ function spawnCardScoreFloat(
   });
 }
 
+function pulseTriggeredJokers(br: ScoreBreakdown) {
+  const jokerIds = [...new Set(br.steps.map((step) => step.jokerId).filter(Boolean) as string[])];
+  jokerIds.forEach((id, index) => {
+    const slot = jokerSlotsEl.querySelector<HTMLElement>(`[data-joker-id="${id}"]`);
+    if (!slot) return;
+    gsap.fromTo(
+      slot,
+      { scale: 1, y: 0 },
+      {
+        scale: 1.12,
+        y: -6,
+        duration: 0.18,
+        delay: index * 0.08,
+        yoyo: true,
+        repeat: 1,
+        ease: 'power2.out',
+      },
+    );
+  });
+}
 
 // ---------- Actions ----------
 function dispatchAction(action: InputAction, payload?: { cardId?: string }): boolean | void {
   if (action === 'select_card') {
+    if (isAnimating) return false;
     if (!payload?.cardId) return false;
     return state.toggleSelect(payload.cardId);
   }
   if (action === 'play_hand') {
-    if (!state.canPlay()) return;
+    if (isAnimating || !state.canPlay()) return;
     audio.play('buttonClick');
     void playSelected();
     return;
   }
   if (action === 'discard') {
-    if (!state.canDiscard()) return;
+    if (isAnimating || !state.canDiscard()) return;
     audio.play('buttonClick');
     void discardSelected();
+    return;
+  }
+  if (action === 'continue_shop') {
+    continueFromShop();
     return;
   }
   if (action === 'restart_run') {
@@ -395,6 +612,8 @@ async function playSelected() {
   if (!state.canPlay()) return;
   const playedCards = state.selectedCards();
   if (playedCards.length === 0) return;
+
+  isAnimating = true;
 
   // Freeze the round score display so state updates don't reveal the final
   // total before the card-by-card tally animation is complete.
@@ -432,24 +651,33 @@ async function playSelected() {
   // win/lose sound would fire twice (once here, once after the scoring
   // animation finishes).
   suppressEndOverlay = true;
+  suppressShopOverlay = true;
   const br = state.playSelected();
   if (!br) {
     suppressEndOverlay = false;
+    suppressShopOverlay = false;
     isRoundScoreAnimating = false;
     frozenRoundScore = null;
+    isAnimating = false;
     return;
   }
 
   // If this play ended the run, keep the overlay hidden until the score
   // animation finishes so the player sees the chips x mult tally first.
   const endsRun = state.phase === 'game-over' || state.phase === 'win';
+  const entersShop = state.phase === 'shop';
   if (endsRun) {
     overlay.classList.add('hidden');
+  } else if (entersShop) {
+    shopOverlay.classList.add('hidden');
+    suppressEndOverlay = false;
   } else {
     suppressEndOverlay = false;
+    suppressShopOverlay = false;
   }
 
   showScorePopup(br);
+  pulseTriggeredJokers(br);
 
   const scoringIds = new Set(br.hand.scoringCards.map((c) => c.id));
   let scoringIndex = 0;
@@ -529,10 +757,14 @@ async function playSelected() {
         objects.delete(card.id);
       });
     }
+    isAnimating = false;
     reflowHand(0.5);
     updateHud();
     if (endsRun) {
       suppressEndOverlay = false;
+      updateHud();
+    } else if (entersShop) {
+      suppressShopOverlay = false;
       updateHud();
     }
   });
@@ -540,6 +772,7 @@ async function playSelected() {
 
 async function discardSelected() {
   if (!state.canDiscard()) return;
+  isAnimating = true;
   const cards = state.selectedCards();
   const avgX = cards.reduce((sum, card) => sum + (objects.get(card.id)?.position.x ?? 0), 0) / Math.max(1, cards.length);
   audio.play('sweep', { pan: panFromX(avgX) });
@@ -556,7 +789,33 @@ async function discardSelected() {
     });
   }
   state.discardSelected();
-  gsap.delayedCall(0.55, () => reflowHand(0.45));
+  gsap.delayedCall(0.55, () => {
+    isAnimating = false;
+    reflowHand(0.45);
+  });
+}
+
+function continueFromShop() {
+  if (state.phase !== 'shop') return false;
+  audio.play('buttonClick');
+  btnShopNext.disabled = true;
+  btnShopReroll.disabled = true;
+  gsap.to(shopPanel, { y: -18, scale: 0.97, duration: 0.2, ease: 'power2.in' });
+  gsap.to(shopOverlay, {
+    opacity: 0,
+    duration: 0.28,
+    ease: 'power2.inOut',
+    onComplete: () => {
+      shopOverlay.classList.add('hidden');
+      shopOverlay.style.opacity = '';
+      shopPanel.style.transform = '';
+      state.continueFromShop();
+      reflowHand(0.65);
+      updateHud();
+      btnShopNext.disabled = false;
+    },
+  });
+  return true;
 }
 
 // ---------- Wire up ----------
@@ -564,6 +823,10 @@ function resetRun() {
   audio.play('buttonClick');
   isRoundScoreAnimating = false;
   frozenRoundScore = null;
+  suppressShopOverlay = false;
+  suppressEndOverlay = false;
+  shopOverlay.classList.add('hidden');
+  shopOverlay.style.opacity = '';
   for (const [, obj] of objects) {
     sceneHandle.handGroup.remove(obj);
     sceneHandle.playGroup.remove(obj);
@@ -583,6 +846,18 @@ for (const [id, action] of Object.entries(UI_ACTION_BINDINGS)) {
     dispatchAction(action);
   });
 }
+
+btnShopReroll.addEventListener('click', () => {
+  if (state.rerollShop()) {
+    audio.play('sweep');
+    gsap.fromTo(shopOffersEl, { opacity: 0.55, y: 8 }, { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out' });
+    updateHud();
+  }
+});
+
+btnShopNext.addEventListener('click', () => {
+  dispatchAction('continue_shop');
+});
 
 const muteBtn = maybe<HTMLButtonElement>('btn-mute');
 if (muteBtn) {
@@ -630,6 +905,8 @@ window.__OPEN_POKER_TEST__ = {
   loadSnapshot: (snapshot: RunSnapshot) => {
     isRoundScoreAnimating = false;
     frozenRoundScore = null;
+    suppressShopOverlay = false;
+    suppressEndOverlay = false;
     state.reset(snapshot);
     handOrder = snapshot.hand.map((card) => card.id);
     reflowHand(0);
@@ -648,8 +925,38 @@ window.__OPEN_POKER_TEST__ = {
   discard: () => {
     dispatchAction('discard');
   },
+  buyOffer: (index = 0) => {
+    const offer = state.shop?.offers[index];
+    return offer ? state.buyOffer(offer.id) : false;
+  },
+  rerollShop: () => state.rerollShop(),
+  continueShop: () => {
+    const ok = state.continueFromShop();
+    if (ok) {
+      reflowHand(0);
+      updateHud();
+    }
+    return ok;
+  },
+  sellJoker: (index = 0) => {
+    const joker = state.jokers[index];
+    return joker ? state.sellJoker(joker.id) : false;
+  },
+  sellConsumable: (index = 0) => {
+    const consumable = state.consumables[index];
+    return consumable ? state.sellConsumable(consumable.id) : false;
+  },
+  useConsumable: (index = 0) => {
+    const consumable = state.consumables[index];
+    return consumable ? state.useConsumable(consumable.id) : false;
+  },
   restart: () => {
     dispatchAction('restart_run');
+  },
+  dispose: () => {
+    gsap.globalTimeline.clear();
+    sceneHandle.dispose();
+    audio.dispose();
   },
 };
 
