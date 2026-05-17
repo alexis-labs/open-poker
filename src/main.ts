@@ -24,7 +24,6 @@ declare global {
       play: () => void;
       discard: () => void;
       restart: () => void;
-      toggleDebug: () => void;
     };
   }
 }
@@ -62,9 +61,6 @@ const popupTotal = $('popup-total');
 const overlay = $('overlay');
 const overlayTitle = $('overlay-title');
 const overlaySub = $('overlay-sub');
-const debugOverlay = maybe('debug-overlay');
-const debugContent = maybe('debug-content');
-const debugToggleBtn = maybe<HTMLButtonElement>('btn-debug');
 
 // ---------- Engine + Scene ----------
 const state = new GameState();
@@ -72,8 +68,6 @@ const sceneHandle = createScene(host);
 
 // CardObject pool keyed by card.id so visuals persist across state mutations.
 const objects = new Map<string, CardObject>();
-let debugVisible = false;
-let fpsEstimate = 0;
 // While the end-of-hand scoring animation is running we suppress the
 // game-over / win overlay so the player can see the score tally first.
 let suppressEndOverlay = false;
@@ -295,37 +289,6 @@ function cardScoreDeltas(card: PlayingCard): { chipsDelta: number; multDelta: nu
   return { chipsDelta, multDelta, multMul };
 }
 
-function setDebugVisible(next: boolean) {
-  debugVisible = next;
-  if (!debugOverlay || !debugToggleBtn) return;
-  debugOverlay.classList.toggle('hidden', !debugVisible);
-  debugToggleBtn.setAttribute('aria-pressed', debugVisible ? 'true' : 'false');
-}
-
-function toggleDebugOverlay() {
-  setDebugVisible(!debugVisible);
-  updateDebugOverlay(true);
-}
-
-function updateDebugOverlay(force = false) {
-  if (!debugOverlay || !debugContent) return;
-  if (!debugVisible && !force) return;
-
-  const metrics = sceneHandle.getMetrics();
-  const snapshot = state.toSnapshot();
-  const blindLabels = ['Small', 'Big', 'Boss'] as const;
-
-  const lines = [
-    `seed=${snapshot.config.seed} phase=${snapshot.phase}`,
-    `blind=${blindLabels[snapshot.blindIndex]} ante=${snapshot.ante}`,
-    `score=${snapshot.roundScore}/${snapshot.target} money=$${snapshot.money}`,
-    `hand=${snapshot.hand.length}/${snapshot.config.handSize} selected=${snapshot.selected.length} deck=${snapshot.deck.length} discard=${snapshot.discardPile.length}`,
-    `handsLeft=${snapshot.handsLeft} discardsLeft=${snapshot.discardsLeft} rngDraws=${snapshot.rngDrawCount}`,
-    `fps~=${fpsEstimate.toFixed(1)} calls=${metrics.calls} tris=${metrics.triangles} frame=${metrics.frame}`,
-  ];
-  debugContent.textContent = lines.join('\n');
-}
-
 // ---------- Actions ----------
 function dispatchAction(action: InputAction, payload?: { cardId?: string }): boolean | void {
   if (action === 'select_card') {
@@ -352,9 +315,6 @@ function dispatchAction(action: InputAction, payload?: { cardId?: string }): boo
     audio.toggleMute();
     if (!audio.isMuted()) audio.play('buttonClick');
     return;
-  }
-  if (action === 'toggle_debug') {
-    toggleDebugOverlay();
   }
 }
 
@@ -559,12 +519,6 @@ if (musicMuteBtn) {
   audio.onMusicMutedChange(refreshMusicMute);
 }
 
-if (debugToggleBtn) {
-  debugToggleBtn.addEventListener('click', () => {
-    dispatchAction('toggle_debug');
-  });
-}
-
 window.addEventListener('keydown', (event) => {
   const action = actionFromKeyboard(event);
   if (!action) return;
@@ -581,26 +535,8 @@ attachInteraction({
   onReorder: (ids) => { handOrder = ids; },
 });
 
-let lastFrameCount = sceneHandle.getMetrics().frame;
-let lastFpsSampleAt = performance.now();
-function tickDebugStats() {
-  const now = performance.now();
-  const elapsed = now - lastFpsSampleAt;
-  if (elapsed >= 400) {
-    const metrics = sceneHandle.getMetrics();
-    const frameDelta = metrics.frame - lastFrameCount;
-    fpsEstimate = (frameDelta * 1000) / elapsed;
-    lastFrameCount = metrics.frame;
-    lastFpsSampleAt = now;
-    updateDebugOverlay();
-  }
-  window.requestAnimationFrame(tickDebugStats);
-}
-window.requestAnimationFrame(tickDebugStats);
-
 state.subscribe(() => {
   updateHud();
-  updateDebugOverlay();
 });
 
 window.__OPEN_POKER_TEST__ = {
@@ -610,7 +546,6 @@ window.__OPEN_POKER_TEST__ = {
     handOrder = snapshot.hand.map((card) => card.id);
     reflowHand(0);
     updateHud();
-    updateDebugOverlay(true);
   },
   selectFirst: (count = 1) => {
     const selectedIds = [...state.selected];
@@ -628,11 +563,7 @@ window.__OPEN_POKER_TEST__ = {
   restart: () => {
     dispatchAction('restart_run');
   },
-  toggleDebug: () => {
-    dispatchAction('toggle_debug');
-  },
 };
 
 reflowHand(0.6);
 updateHud();
-updateDebugOverlay(true);

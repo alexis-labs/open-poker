@@ -133,5 +133,4 @@ export type InputAction =
   | 'play_hand'
   | 'discard'
   | 'restart_run'
-  | 'toggle_mute'
-  | 'toggle_debug';
+  | 'toggle_mute';

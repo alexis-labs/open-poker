@@ -11,7 +11,6 @@ export const INPUT_ACTIONS: ActionBinding[] = [
   { action: 'discard', description: 'Discard selected cards', keys: ['Backspace', 'Delete'] },
   { action: 'restart_run', description: 'Start a new run', keys: ['KeyR'] },
   { action: 'toggle_mute', description: 'Mute/unmute audio', keys: ['KeyM'] },
-  { action: 'toggle_debug', description: 'Toggle debug overlay', keys: ['F3', 'Backquote'] },
 ];
 
 export const UI_ACTION_BINDINGS: Record<string, InputAction> = {
@@ -19,7 +18,6 @@ export const UI_ACTION_BINDINGS: Record<string, InputAction> = {
   'btn-discard': 'discard',
   'overlay-restart': 'restart_run',
   'btn-mute': 'toggle_mute',
-  'btn-debug': 'toggle_debug',
 };
 
 const KEY_TO_ACTION = new Map<string, InputAction>(
