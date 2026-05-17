@@ -255,23 +255,44 @@ export function win(ctx: AudioContext, dest: AudioNode, opts: SynthOpts = {}) {
 }
 
 export function lose(ctx: AudioContext, dest: AudioNode, opts: SynthOpts = {}) {
-  const v = opts.volume ?? 0.4;
+  const v = opts.volume ?? 0.35;
   const t0 = ctx.currentTime;
-  const notes = [392, 349.23, 311.13, 261.63]; // G4 F4 Eb4 C4 — sad descent
+  // Drop an octave for a heavier, less "beepy" sad descent.
+  const notes = [196, 174.61, 155.56, 130.81]; // G3 F3 Eb3 C3
+  // Shared lowpass keeps the timbre warm (no bright square/saw harmonics).
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 900;
+  lp.Q.value = 0.5;
+  lp.connect(dest);
+
   notes.forEach((freq, i) => {
+    const ts = t0 + i * 0.22;
+    const dur = i === notes.length - 1 ? 1.1 : 0.7;
     const g = ctx.createGain();
-    const ts = t0 + i * 0.16;
     g.gain.setValueAtTime(0.0001, ts);
-    g.gain.exponentialRampToValueAtTime(v, ts + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, ts + 0.5);
-    g.connect(dest);
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = freq;
-    o.detune.value = (i % 2 === 0 ? -8 : 8); // slight detune for sad feel
-    o.connect(g);
-    o.start(ts);
-    o.stop(ts + 0.55);
+    g.gain.exponentialRampToValueAtTime(v, ts + 0.05); // slower attack
+    g.gain.exponentialRampToValueAtTime(0.0001, ts + dur);
+    g.connect(lp);
+
+    // Triangle fundamental + sine sub-octave for body; no sawtooth.
+    const o1 = ctx.createOscillator();
+    o1.type = 'triangle';
+    o1.frequency.value = freq;
+    o1.detune.value = -4;
+    o1.connect(g);
+    o1.start(ts);
+    o1.stop(ts + dur + 0.05);
+
+    const sub = ctx.createGain();
+    sub.gain.value = 0.45;
+    sub.connect(g);
+    const o2 = ctx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = freq / 2;
+    o2.connect(sub);
+    o2.start(ts);
+    o2.stop(ts + dur + 0.05);
   });
 }
 
