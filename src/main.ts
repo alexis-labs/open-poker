@@ -289,6 +289,75 @@ function cardScoreDeltas(card: PlayingCard): { chipsDelta: number; multDelta: nu
   return { chipsDelta, multDelta, multMul };
 }
 
+// Floating value above a scoring card. Projects the card's world position to
+// screen space, then spawns DOM labels that pop in, drift up, and fade out.
+function spawnCardScoreFloat(
+  obj: CardObject,
+  deltas: { chipsDelta: number; multDelta: number; multMul: number },
+) {
+  const labels: { text: string; cls: string }[] = [];
+  if (deltas.chipsDelta !== 0) {
+    labels.push({ text: `+${Math.round(deltas.chipsDelta)}`, cls: 'is-chips' });
+  }
+  if (deltas.multDelta !== 0) {
+    labels.push({ text: `+${Math.round(deltas.multDelta)} Mult`, cls: 'is-mult-add' });
+  }
+  if (deltas.multMul !== 1) {
+    const m = Number.isInteger(deltas.multMul) ? deltas.multMul.toString() : deltas.multMul.toFixed(1);
+    labels.push({ text: `×${m} Mult`, cls: 'is-mult-mul' });
+  }
+  if (labels.length === 0) return;
+
+  // Project card top in world space → screen pixels inside #canvas-host.
+  const worldPos = new THREE.Vector3();
+  obj.getWorldPosition(worldPos);
+  worldPos.y += 1.1; // anchor above the card top edge
+  const projected = worldPos.project(sceneHandle.camera);
+  const rect = host.getBoundingClientRect();
+  const x = ((projected.x + 1) / 2) * rect.width;
+  const y = ((1 - projected.y) / 2) * rect.height;
+
+  labels.forEach((label, i) => {
+    const el = document.createElement('div');
+    el.className = `card-score-float ${label.cls}`;
+    el.textContent = label.text;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.opacity = '0';
+    host.appendChild(el);
+
+    const delay = i * 0.08;
+    const drift = 28 + i * 6;
+    gsap.fromTo(
+      el,
+      { opacity: 0, y: 6, scale: 0.6 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1.1,
+        duration: 0.22,
+        delay,
+        ease: 'back.out(2.2)',
+      },
+    );
+    gsap.to(el, {
+      y: -drift,
+      scale: 1,
+      duration: 0.9,
+      delay: delay + 0.22,
+      ease: 'sine.out',
+    });
+    gsap.to(el, {
+      opacity: 0,
+      duration: 0.45,
+      delay: delay + 0.7,
+      ease: 'power1.in',
+      onComplete: () => el.remove(),
+    });
+  });
+}
+
+
 // ---------- Actions ----------
 function dispatchAction(action: InputAction, payload?: { cardId?: string }): boolean | void {
   if (action === 'select_card') {
@@ -406,6 +475,7 @@ async function playSelected() {
           life: 1.0,
           size: 16,
         });
+        spawnCardScoreFloat(obj, delta);
         audio.play('chipTick', { volume: 0.24, pitch: 1 + idx * 0.08, pan: panFromX(obj.position.x) });
 
         if (delta.chipsDelta !== 0) {

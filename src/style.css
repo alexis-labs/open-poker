@@ -465,6 +465,28 @@ canvas { display: block; }
   gap: 14px;
 }
 .score-popup.hidden { display: none; }
+
+/* ---------------------------------------------------------
+   Floating card score (+chips / +mult / ×mult above the card)
+   --------------------------------------------------------- */
+.card-score-float {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: "Silkscreen", monospace;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 7;
+  white-space: nowrap;
+  text-shadow:
+    0 2px 0 #000,
+    0 0 8px rgba(0, 0, 0, 0.85),
+    0 0 14px currentColor;
+  will-change: transform, opacity;
+}
+.card-score-float.is-chips     { color: #4ad6ff; }
+.card-score-float.is-mult-add  { color: #ff5b6d; }
+.card-score-float.is-mult-mul  { color: #ffd24a; font-size: 30px; }
 .popup-hand {
   font-family: "Silkscreen", monospace;
   font-size: 16px;
