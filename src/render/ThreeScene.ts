@@ -166,6 +166,7 @@ export function createScene(container: HTMLElement): SceneHandle {
     map: getBackTexture(),
     roughness: 0.85,
     metalness: 0.05,
+    alphaTest: 0.5,
   });
   // 12 stacked planes is enough to read as a deck without being heavy.
   const DECK_VISUAL_MAX = 12;

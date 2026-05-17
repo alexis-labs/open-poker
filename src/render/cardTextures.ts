@@ -43,7 +43,11 @@ function tryOverlayImage(url: string, canvas: HTMLCanvasElement, tex: THREE.Canv
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    rounded(ctx, 6, 6, canvas.width - 12, canvas.height - 12, 22);
+    ctx.clip();
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
     tex.needsUpdate = true;
   };
   img.onerror = () => { /* leave procedural art in place */ };

@@ -114,6 +114,7 @@ export class CardObject extends THREE.Group {
       map: getCardTexture(card),
       roughness: 0.55,
       metalness: 0.05,
+      alphaTest: 0.5,
       emissive: new THREE.Color(0x000000),
       emissiveIntensity: 0,
     });
@@ -121,6 +122,7 @@ export class CardObject extends THREE.Group {
       map: getBackTexture(),
       roughness: 0.55,
       metalness: 0.05,
+      alphaTest: 0.5,
     });
 
     this.faceMesh = new THREE.Mesh(geom, front);
