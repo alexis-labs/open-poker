@@ -3,6 +3,21 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "description": "Browser-based poker roguelike prototype built with TypeScript, Three.js, and Vite.",
+  "keywords": [
+    "poker",
+    "poker-game",
+    "roguelike",
+    "deckbuilder",
+    "card-game",
+    "balatro-inspired",
+    "typescript",
+    "threejs",
+    "vite",
+    "browser-game",
+    "open-source-game",
+    "game-dev"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

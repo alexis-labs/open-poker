@@ -6,6 +6,12 @@ The goal of this repository is to make the project easy to run, understand, and 
 
 ![Open Poker gameplay example](public/examples/gameplay-example.png)
 
+## Community Tags
+
+Suggested GitHub topics for discoverability:
+
+`poker`, `poker-game`, `roguelike`, `deckbuilder`, `card-game`, `balatro-inspired`, `typescript`, `threejs`, `vite`, `browser-game`, `open-source-game`, `game-dev`
+
 ## Current Features
 
 - Seeded run state with antes, blinds, hands, discards, deck, and score targets.
