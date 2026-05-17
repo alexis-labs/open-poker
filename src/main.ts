@@ -71,6 +71,9 @@ const objects = new Map<string, CardObject>();
 // While the end-of-hand scoring animation is running we suppress the
 // game-over / win overlay so the player can see the score tally first.
 let suppressEndOverlay = false;
+// Keep the round score readout visually frozen during score tally animation.
+let isRoundScoreAnimating = false;
+let frozenRoundScore: number | null = null;
 
 function panFromX(x: number): number {
   return Math.max(-0.7, Math.min(0.7, x / 4.5));
@@ -169,7 +172,8 @@ function updateHud() {
 
   blindTarget.textContent = state.target.toLocaleString();
   blindReward.textContent = BLIND_REWARD[idx];
-  roundScoreEl.textContent = state.roundScore.toLocaleString();
+  const shownRoundScore = isRoundScoreAnimating ? (frozenRoundScore ?? state.roundScore) : state.roundScore;
+  roundScoreEl.textContent = shownRoundScore.toLocaleString();
   anteEl.innerHTML = `${state.ante}<span class="counter-total">/8</span>`;
   const roundNumber = (state.ante - 1) * 3 + state.blindIndex + 1;
   roundEl.textContent = String(roundNumber);
@@ -392,6 +396,11 @@ async function playSelected() {
   const playedCards = state.selectedCards();
   if (playedCards.length === 0) return;
 
+  // Freeze the round score display so state updates don't reveal the final
+  // total before the card-by-card tally animation is complete.
+  isRoundScoreAnimating = true;
+  frozenRoundScore = state.roundScore;
+
   const playSlots = layoutPlay(playedCards.length);
   audio.play('whoosh');
   const worldPos = new THREE.Vector3();
@@ -426,6 +435,8 @@ async function playSelected() {
   const br = state.playSelected();
   if (!br) {
     suppressEndOverlay = false;
+    isRoundScoreAnimating = false;
+    frozenRoundScore = null;
     return;
   }
 
@@ -504,6 +515,9 @@ async function playSelected() {
   });
 
   gsap.delayedCall(totalAt + 1.2, () => {
+    isRoundScoreAnimating = false;
+    frozenRoundScore = null;
+
     for (const card of playedCards) {
       const obj = objects.get(card.id);
       if (!obj) continue;
@@ -548,6 +562,8 @@ async function discardSelected() {
 // ---------- Wire up ----------
 function resetRun() {
   audio.play('buttonClick');
+  isRoundScoreAnimating = false;
+  frozenRoundScore = null;
   for (const [, obj] of objects) {
     sceneHandle.handGroup.remove(obj);
     sceneHandle.playGroup.remove(obj);
@@ -612,6 +628,8 @@ state.subscribe(() => {
 window.__OPEN_POKER_TEST__ = {
   snapshot: () => state.toSnapshot(),
   loadSnapshot: (snapshot: RunSnapshot) => {
+    isRoundScoreAnimating = false;
+    frozenRoundScore = null;
     state.reset(snapshot);
     handOrder = snapshot.hand.map((card) => card.id);
     reflowHand(0);
