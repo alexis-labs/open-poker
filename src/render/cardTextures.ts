@@ -50,6 +50,12 @@ function tryOverlayImage(url: string, canvas: HTMLCanvasElement, tex: THREE.Canv
   img.src = url;
 }
 
+/** Try each extension in order; the first one that loads wins. */
+function tryOverlayWithExts(base: string, canvas: HTMLCanvasElement, tex: THREE.CanvasTexture) {
+  const exts = ['svg', 'png', 'webp', 'jpg'];
+  for (const ext of exts) tryOverlayImage(`${base}.${ext}`, canvas, tex);
+}
+
 function rounded(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -142,11 +148,11 @@ export function getCardTexture(card: PlayingCard): THREE.CanvasTexture {
   tex.anisotropy = 4;
   cache.set(key, tex);
 
-  // Try to override with `/art/cards/{RANK}_{suit}.png` (unenhanced cards only —
-  // enhancements still come from the procedural layer).
+  // Try to override with `/art/cards/{RANK}_{suit}.{svg|png|...}` (unenhanced
+  // cards only — enhancements still come from the procedural layer).
   if (card.enhancement === 'none') {
     const rankPart = RANK_LABEL[card.rank];
-    tryOverlayImage(`/art/cards/${rankPart}_${card.suit}.png`, canvas, tex);
+    tryOverlayWithExts(`/art/cards/${rankPart}_${card.suit}`, canvas, tex);
   }
 
   return tex;
@@ -189,8 +195,8 @@ export function getBackTexture(): THREE.CanvasTexture {
   backTex.colorSpace = THREE.SRGBColorSpace;
   backTex.anisotropy = 4;
 
-  // Optional override at /art/back/default.png
-  tryOverlayImage('/art/back/default.png', canvas, backTex);
+  // Optional override at /art/back/default.{svg|png|...}
+  tryOverlayWithExts('/art/back/default', canvas, backTex);
 
   return backTex;
 }

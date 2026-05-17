@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 176" width="128" height="176">
+  <defs>
+    <linearGradient id="gjoker_02" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(110, 70%, 60%)"/>
+      <stop offset="1" stop-color="hsl(110, 80%, 25%)"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="168" rx="10" ry="10" fill="url(#gjoker_02)" stroke="#000" stroke-width="4"/>
+  <rect x="10" y="10" width="108" height="156" rx="6" ry="6" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+  <circle cx="64" cy="76" r="34" fill="rgba(255,255,255,0.18)" stroke="#000" stroke-width="2"/>
+  <text x="64" y="86" font-size="40" text-anchor="middle" fill="#fff" font-family="serif">?</text>
+  <text x="64" y="135" font-size="11" text-anchor="middle" fill="#fff"
+        font-family="'Silkscreen', monospace" font-weight="700">GREEDY</text>
+  <text x="64" y="168" font-size="7" text-anchor="middle" fill="#000" font-family="monospace">jokers/joker_02.svg</text>
+</svg>

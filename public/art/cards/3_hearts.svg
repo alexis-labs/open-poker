@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 360" width="256" height="360">
+  <!-- DUMMY ART — replace this file with your own (same name, .svg or .png) -->
+  <rect x="6" y="6" width="244" height="348" rx="22" ry="22" fill="#fdfdfd" stroke="#222" stroke-width="4"/>
+  <g font-family="'Trebuchet MS', sans-serif" font-weight="700" fill="#e23b3b">
+    <text x="22" y="70" font-size="56" text-anchor="start">3</text>
+    <text x="22" y="118" font-size="48" text-anchor="start" font-family="serif">♥</text>
+    <g transform="translate(234 330) rotate(180)">
+      <text x="0" y="0" font-size="56">3</text>
+      <text x="0" y="48" font-size="48" font-family="serif">♥</text>
+    </g>
+    <text x="128" y="220" font-size="160" font-family="serif" text-anchor="middle">♥</text>
+  </g>
+  <text x="128" y="350" font-size="10" text-anchor="middle" fill="#888" font-family="monospace">3_hearts.svg</text>
+</svg>

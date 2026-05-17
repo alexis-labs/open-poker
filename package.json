@@ -11,17 +11,26 @@
     "deckbuilder",
     "card-game",
     "balatro-inspired",
-    "typescript",
-    "threejs",
-    "vite",
     "browser-game",
+    "web-game",
+    "typescript",
+    "javascript",
+    "threejs",
+    "webgl",
+    "vite",
+    "html5",
+    "howlerjs",
+    "gsap",
+    "game-development",
+    "indie-game",
     "open-source-game",
     "game-dev"
   ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gen-art": "node scripts/generate-dummy-art.mjs"
   },
   "devDependencies": {
     "@types/howler": "^2.2.12",

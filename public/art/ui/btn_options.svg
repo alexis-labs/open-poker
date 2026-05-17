@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" width="220" height="64">
+  <defs>
+    <linearGradient id="bbtn_options" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f29033"/>
+      <stop offset="1" stop-color="#c25f1a"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="212" height="56" rx="12" ry="12" fill="url(#bbtn_options)" stroke="#000" stroke-width="3"/>
+  <rect x="9" y="9" width="202" height="46" rx="9" ry="9" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="110" y="40" font-size="18" font-family="'Silkscreen', monospace" font-weight="700"
+        text-anchor="middle" fill="#fff">OPTIONS</text>
+  <text x="110" y="58" font-size="6" text-anchor="middle" fill="#000" font-family="monospace">ui/btn_options.svg</text>
+</svg>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="g" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#f2c14a"/>
+      <stop offset="0.55" stop-color="#c88a1a"/>
+      <stop offset="1" stop-color="#6b3a08"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="58" fill="url(#g)" stroke="#000" stroke-width="6"/>
+  <circle cx="64" cy="64" r="50" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+  <text x="64" y="60" font-size="13" font-family="'Silkscreen', monospace" font-weight="700"
+        text-anchor="middle" fill="#3a1a08">SMALL</text>
+  <text x="64" y="78" font-size="13" font-family="'Silkscreen', monospace" font-weight="700"
+        text-anchor="middle" fill="#3a1a08">BLIND</text>
+  <text x="64" y="124" font-size="6" text-anchor="middle" fill="#000" font-family="monospace">blinds/small.svg</text>
+</svg>

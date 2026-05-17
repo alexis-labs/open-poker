@@ -10,7 +10,7 @@ The goal of this repository is to make the project easy to run, understand, and 
 
 Suggested GitHub topics for discoverability:
 
-`poker`, `poker-game`, `roguelike`, `deckbuilder`, `card-game`, `balatro-inspired`, `typescript`, `threejs`, `vite`, `browser-game`, `open-source-game`, `game-dev`
+`poker`, `poker-game`, `roguelike`, `deckbuilder`, `card-game`, `balatro-inspired`, `browser-game`, `web-game`, `typescript`, `javascript`, `threejs`, `webgl`, `vite`, `html5`, `howlerjs`, `gsap`, `game-development`, `indie-game`, `open-source-game`, `game-dev`
 
 ## Current Features
 
