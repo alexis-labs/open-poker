@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>open-poker — Balatro-like</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <div id="canvas-host"></div>
+
+      <!-- TOP: jokers + consumables -->
+      <header class="hud-top">
+        <div class="slot-row jokers">
+          <div class="joker-slots" id="joker-slots"></div>
+          <div class="slot-count" id="joker-count">0/5</div>
+        </div>
+        <div class="slot-row consumables">
+          <div class="consumable-slots" id="consumable-slots"></div>
+          <div class="slot-count" id="consumable-count">0/2</div>
+        </div>
+      </header>
+
+      <!-- LEFT SIDEBAR (HUD) -->
+      <aside class="sidebar">
+        <!-- Blind block -->
+        <section class="block blind-block">
+          <div class="block-header" id="blind-name">Small Blind</div>
+          <div class="blind-body">
+            <div class="blind-badge" id="blind-badge"><span>SMALL<br/>BLIND</span></div>
+            <div class="blind-info">
+              <div class="blind-info-label">Score at least</div>
+              <div class="blind-target">
+                <span class="chip-icon">✱</span>
+                <span id="blind-target" class="num">300</span>
+              </div>
+              <div class="blind-info-label">
+                Reward: <span id="blind-reward" class="gold">$$$</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Round score -->
+        <section class="block round-score-block">
+          <div class="block-label">Round<br/>score</div>
+          <div class="round-score-value">
+            <span class="chip-icon">✱</span>
+            <span id="round-score" class="num">0</span>
+          </div>
+        </section>
+
+        <!-- Chips × Mult -->
+        <section class="block hand-block">
+          <div class="hand-type" id="hand-type">—</div>
+          <div class="chips-mult-row">
+            <div class="chips-pill"><span id="chips" class="num">0</span></div>
+            <div class="x-sep">X</div>
+            <div class="mult-pill"><span id="mult" class="num">0</span></div>
+          </div>
+        </section>
+
+        <!-- Run actions + counters -->
+        <section class="block actions-block">
+          <div class="action-grid">
+            <button id="btn-runinfo" class="big-btn red">
+              <span class="big-btn-label">Run</span>
+              <span class="big-btn-sub">Info</span>
+            </button>
+            <div class="counter-card">
+              <div class="counter-label">Hands</div>
+              <div id="hands-left" class="counter-value blue">4</div>
+            </div>
+            <div class="counter-card">
+              <div class="counter-label">Discards</div>
+              <div id="discards-left" class="counter-value red">3</div>
+            </div>
+          </div>
+          <div class="action-grid">
+            <button id="btn-options" class="big-btn orange">
+              <span class="big-btn-label">Options</span>
+              <span class="big-btn-sub">≡</span>
+            </button>
+            <div class="counter-card">
+              <div class="counter-label">Ante</div>
+              <div id="ante" class="counter-value blue">1<span class="counter-total">/8</span></div>
+            </div>
+            <div class="counter-card">
+              <div class="counter-label">Round</div>
+              <div id="round" class="counter-value blue">1</div>
+            </div>
+          </div>
+          <div class="money-row">
+            <span id="money" class="money">$4</span>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Floating counters near the deck / hand -->
+      <div class="hand-counter" id="hand-counter">0/8</div>
+      <div class="deck-counter" id="deck-counter">52/52</div>
+
+      <!-- Action bar (Play / Discard / Reset) -->
+      <div class="actionbar">
+        <button id="btn-play" class="btn btn-play">Play Hand</button>
+        <button id="btn-discard" class="btn btn-discard">Discard</button>
+        <button id="btn-reset" class="btn btn-ghost">New Run</button>
+      </div>
+
+      <!-- Score popup -->
+      <div id="score-popup" class="score-popup hidden">
+        <div id="popup-hand" class="popup-hand">Pair</div>
+        <div class="popup-row">
+          <div class="chips-pill big-pill"><span id="popup-chips" class="num">0</span></div>
+          <div class="x-sep big">X</div>
+          <div class="mult-pill big-pill"><span id="popup-mult" class="num">0</span></div>
+        </div>
+        <div id="popup-total" class="popup-total">0</div>
+      </div>
+
+      <!-- Game over / win overlay -->
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <div id="overlay-title" class="overlay-title">Game Over</div>
+          <div id="overlay-sub" class="overlay-sub"></div>
+          <button id="overlay-restart" class="btn btn-play">New Run</button>
+        </div>
+      </div>
+
+      <!-- Hidden seed (kept for state; not shown in the HUD) -->
+      <span id="seed" hidden></span>
+
+      <!-- Mute / unmute toggle -->
+      <button id="btn-mute" class="mute-btn" aria-label="Mute">🔊</button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
