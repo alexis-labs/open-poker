@@ -39,7 +39,6 @@ const consumableSlotsEl = $('consumable-slots');
 const consumableCountEl = $('consumable-count');
 const btnPlay = $<HTMLButtonElement>('btn-play');
 const btnDiscard = $<HTMLButtonElement>('btn-discard');
-const btnReset = $<HTMLButtonElement>('btn-reset');
 const popup = $('score-popup');
 const popupHand = $('popup-hand');
 const popupChips = $('popup-chips');
@@ -353,9 +352,7 @@ async function discardSelected() {
 }
 
 // ---------- Wire up ----------
-btnPlay.addEventListener('click', () => { audio.play('buttonClick'); void playSelected(); });
-btnDiscard.addEventListener('click', () => { audio.play('buttonClick'); void discardSelected(); });
-btnReset.addEventListener('click', () => {
+function resetRun() {
   audio.play('buttonClick');
   for (const [, obj] of objects) {
     sceneHandle.handGroup.remove(obj);
@@ -367,8 +364,11 @@ btnReset.addEventListener('click', () => {
   state.reset();
   reflowHand(0.6);
   updateHud();
-});
-overlayRestart.addEventListener('click', () => btnReset.click());
+}
+
+btnPlay.addEventListener('click', () => { audio.play('buttonClick'); void playSelected(); });
+btnDiscard.addEventListener('click', () => { audio.play('buttonClick'); void discardSelected(); });
+overlayRestart.addEventListener('click', () => resetRun());
 
 // Mute toggle (persisted via AudioManager → localStorage)
 const muteBtn = document.getElementById('btn-mute') as HTMLButtonElement | null;

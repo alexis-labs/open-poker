@@ -7,8 +7,8 @@ import gsap from 'gsap';
 import type { PlayingCard } from '../game/types';
 import { getBackTexture, getCardTexture } from './cardTextures';
 
-export const CARD_W = 1.4;
-export const CARD_H = 1.96;
+export const CARD_W = 1.2;
+export const CARD_H = 1.68;
 export const CARD_T = 0.04; // small offset so faces don't z-fight
 
 export class CardObject extends THREE.Group {

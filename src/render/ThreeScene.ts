@@ -86,6 +86,33 @@ function buildBackground(): THREE.Mesh {
   return mesh;
 }
 
+/**
+ * Tries to load /art/ui/background.{png,webp,jpg,svg} and assigns it to
+ * scene.background (Three.js native path — correct colorspace + no blending
+ * artefacts). When a file is found the procedural bg mesh is hidden.
+ * Falls back silently if no file exists.
+ */
+function buildImageBackground(scene: THREE.Scene, procBg: THREE.Mesh): void {
+  const loader = new THREE.TextureLoader();
+  const exts = ['png', 'webp', 'jpg', 'svg'];
+  let i = 0;
+  const tryNext = () => {
+    if (i >= exts.length) return;
+    const url = `/art/ui/background.${exts[i++]}`;
+    loader.load(
+      url,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        scene.background = tex;
+        procBg.visible = false; // hide procedural shader bg
+      },
+      undefined,
+      tryNext, // 404 / error → try next extension
+    );
+  };
+  tryNext();
+}
+
 export function createScene(container: HTMLElement): SceneHandle {
   const scene = new THREE.Scene();
 
@@ -102,6 +129,9 @@ export function createScene(container: HTMLElement): SceneHandle {
   // Background
   const bg = buildBackground();
   scene.add(bg);
+  // Image background — loads /art/ui/background.{png,webp,jpg,svg} if present.
+  // On success: sets scene.background and hides the procedural mesh.
+  buildImageBackground(scene, bg);
 
   // Lights
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -115,7 +145,7 @@ export function createScene(container: HTMLElement): SceneHandle {
   // Groups
   const handGroup = new THREE.Group();
   // Smaller + lifted so cards sit higher and look less crowded.
-  handGroup.position.set(0, -1.45, 0);
+  handGroup.position.set(0, -0.9, 0);
   handGroup.scale.setScalar(0.7);
   scene.add(handGroup);
 
