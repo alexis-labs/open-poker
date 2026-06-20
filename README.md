@@ -6,6 +6,8 @@
 
 Built with TypeScript, Three.js, Vite, GSAP, and Howler. Fast to run, deterministic to debug, and friendly to tinker with.
 
+[Play the demo on itch.io](https://alexis-labs.itch.io/open-poker)
+
 [🚀 Quick start](#quick-start) • [🎮 Gameplay](#gameplay) • [✨ Features](#features) • [🧪 Testing](#testing--ci) • [🤝 Contributing](#contributing)
 
 </div>
@@ -140,9 +142,20 @@ http://localhost:5173
 | `npm run test:coverage` | Run unit tests with v8 coverage. |
 | `npm run test:smoke` | Run the Playwright browser smoke playtest. |
 | `npm run build` | Typecheck and create a production build. |
+| `npm run build:itch` | Create an itch.io-ready production build and `open-poker-itch.zip`. |
 | `npm run check` | Run the full quality gate: typecheck + coverage + build. |
 | `npm run preview` | Serve the production build locally. |
 | `npm run gen-art` | Generate placeholder art into `public/art/`. |
+
+### Itch.io HTML5 build
+
+Live demo: [alexis-labs.itch.io/open-poker](https://alexis-labs.itch.io/open-poker)
+
+Run `npm run build:itch`, then upload `open-poker-itch.zip` as an HTML5 game.
+The package keeps `index.html` at the zip root and stores asset paths with `/`
+separators so itch.io can serve `assets/` and `art/` files correctly. The build
+uses relative asset paths and shows a splash loader until the packaged art and
+music have been fetched.
 
 ## 🗺️ Project map
 

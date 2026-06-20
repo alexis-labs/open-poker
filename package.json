@@ -30,13 +30,15 @@
         "dev": "vite",
         "typecheck": "tsc --noEmit",
         "build": "tsc --noEmit && vite build",
+        "build:itch": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-itch.ps1",
+        "perf:budget": "node scripts/check-performance-budget.mjs",
         "preview": "vite preview",
         "gen-art": "node scripts/generate-dummy-art.mjs",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "test:smoke": "playwright test",
-        "check": "npm run typecheck && npm run test:coverage && npm run build"
+        "check": "npm run typecheck && npm run test:coverage && npm run build && npm run perf:budget"
     },
     "devDependencies": {
         "@playwright/test": "^1.60.0",

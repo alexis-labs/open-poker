@@ -3,7 +3,6 @@
 // shows an animated Chips x Mult readout when a hand is scored.
 
 import './style.css';
-import * as THREE from 'three';
 import gsap from 'gsap';
 
 import { GameState, MAX_CONSUMABLES, MAX_JOKERS } from './game/gameState';
@@ -14,6 +13,8 @@ import { CardObject } from './render/CardObject';
 import { attachInteraction } from './render/Interaction';
 import { audio } from './audio/AudioManager';
 import { actionFromKeyboard, UI_ACTION_BINDINGS } from './input/actions';
+import { preloadGameAssets } from './loading/preload';
+import type { Material } from 'three';
 
 declare global {
   interface Window {
@@ -39,6 +40,10 @@ declare global {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const maybe = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
+const splash = maybe('splash-screen');
+const splashProgressBar = maybe('splash-progress-bar');
+const splashStatus = maybe('splash-status');
+const splashPercent = maybe('splash-percent');
 const host = $('canvas-host');
 const blindName = $('blind-name');
 const blindBadge = $('blind-badge');
@@ -78,12 +83,69 @@ const shopRerollCostEl = $('shop-reroll-cost');
 const btnShopReroll = $<HTMLButtonElement>('btn-shop-reroll');
 const btnShopNext = $<HTMLButtonElement>('btn-shop-next');
 
-// ---------- Engine + Scene ----------
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function updateResponsiveHudVars() {
+  const width = window.innerWidth || 1280;
+  const height = window.innerHeight || 720;
+  const scale = clamp(Math.min(width / 1280, height / 900), 0.72, 1);
+  const edge = Math.round(14 * scale);
+  const sidebarWidth = 260;
+  const topGap = 16 * scale;
+  const hudTopLeft = edge + sidebarWidth * scale + topGap;
+  const hudTopWidth = Math.max(320, (width - hudTopLeft - edge) / scale);
+  const sidebarHeight = Math.max(360, (height - edge * 2) / scale);
+
+  const root = document.documentElement;
+  root.style.setProperty('--ui-scale', scale.toFixed(3));
+  root.style.setProperty('--ui-edge', `${edge}px`);
+  root.style.setProperty('--sidebar-layout-height', `${sidebarHeight}px`);
+  root.style.setProperty('--hud-top-left', `${hudTopLeft}px`);
+  root.style.setProperty('--hud-top-layout-width', `${hudTopWidth}px`);
+}
+
+updateResponsiveHudVars();
+
+function setSplashProgress(progress: { loaded: number; total: number; label: string; failed: number }) {
+  const ratio = progress.total === 0 ? 1 : progress.loaded / progress.total;
+  const pct = Math.round(ratio * 100);
+  if (splashProgressBar) splashProgressBar.style.transform = `scaleX(${ratio})`;
+  if (splashPercent) splashPercent.textContent = `${pct}%`;
+  if (!splashStatus) return;
+
+  if (progress.loaded >= progress.total) {
+    splashStatus.textContent = progress.failed > 0
+      ? `Loaded with ${progress.failed} fallback${progress.failed === 1 ? '' : 's'}`
+      : 'Ready';
+    return;
+  }
+
+  splashStatus.textContent = `Loading ${progress.label}`;
+}
+
+function dismissSplash() {
+  if (!splash) return;
+  window.setTimeout(() => {
+    splash.classList.add('is-complete');
+    window.setTimeout(() => splash.remove(), 650);
+  }, 220);
+}
+
 const state = new GameState();
+const preloadResult = await preloadGameAssets(setSplashProgress, { cards: state.hand });
+if (preloadResult.failed.length > 0) {
+  console.warn('[preload] Assets loaded with fallbacks:', preloadResult.failed);
+}
+dismissSplash();
+
+// ---------- Engine + Scene ----------
 const sceneHandle = createScene(host);
 
 // CardObject pool keyed by card.id so visuals persist across state mutations.
 const objects = new Map<string, CardObject>();
+const objectPool: CardObject[] = [];
 // While the end-of-hand scoring animation is running we suppress the
 // game-over / win overlay so the player can see the score tally first.
 let suppressEndOverlay = false;
@@ -95,15 +157,34 @@ let frozenRoundScore: number | null = null;
 // hand or discard animation is in flight. Cleared once reflowHand is called
 // and new cards are visible so the player can interact again.
 let isAnimating = false;
+const scoreFloatPool: HTMLDivElement[] = [];
 
 function panFromX(x: number): number {
   return Math.max(-0.7, Math.min(0.7, x / 4.5));
 }
 
+function acquireScoreFloat(parent: HTMLElement): HTMLDivElement {
+  const el = scoreFloatPool.pop() ?? document.createElement('div');
+  el.removeAttribute('style');
+  el.className = 'card-score-float';
+  el.textContent = '';
+  parent.appendChild(el);
+  return el;
+}
+
+function releaseScoreFloat(el: HTMLDivElement) {
+  el.remove();
+  el.removeAttribute('style');
+  el.className = 'card-score-float';
+  el.textContent = '';
+  scoreFloatPool.push(el);
+}
+
 function getOrCreateObject(card: PlayingCard): CardObject {
   let obj = objects.get(card.id);
   if (!obj) {
-    obj = new CardObject(card);
+    obj = objectPool.pop() ?? new CardObject(card);
+    obj.resetForCard(card);
     sceneHandle.handGroup.add(obj);
     obj.position.set(6, -2, 1); // spawn from the deck side and fly in
     obj.rotation.y = Math.PI;   // start back-facing
@@ -117,6 +198,20 @@ function getOrCreateObject(card: PlayingCard): CardObject {
     gsap.to(obj.rotation, { y: 0, duration: 0.5, delay: 0.05, ease: 'power3.out' });
   }
   return obj;
+}
+
+function releaseObject(id: string, obj: CardObject) {
+  sceneHandle.handGroup.remove(obj);
+  sceneHandle.playGroup.remove(obj);
+  objects.delete(id);
+  obj.resetForCard(obj.card);
+  objectPool.push(obj);
+}
+
+function disposeObject(obj: CardObject) {
+  sceneHandle.handGroup.remove(obj);
+  sceneHandle.playGroup.remove(obj);
+  obj.dispose();
 }
 
 // Renderer-side ordering: we keep a manual list so drag-reorder works smoothly
@@ -150,10 +245,7 @@ function reflowHand(duration = 0.4) {
   // Dispose objects no longer in the hand and not protected mid-play.
   for (const [id, obj] of objects) {
     if (!cardsById[id] && !obj.userData.keepAlive) {
-      sceneHandle.handGroup.remove(obj);
-      sceneHandle.playGroup.remove(obj);
-      obj.dispose();
-      objects.delete(id);
+      releaseObject(id, obj);
     }
   }
 }
@@ -169,7 +261,7 @@ function shortName(name: string): string {
 }
 
 function renderInventorySlots() {
-  jokerSlotsEl.innerHTML = '';
+  jokerSlotsEl.replaceChildren();
   for (let i = 0; i < MAX_JOKERS; i++) {
     const slot = document.createElement('div');
     const joker = state.jokers[i];
@@ -182,7 +274,7 @@ function renderInventorySlots() {
     jokerSlotsEl.appendChild(slot);
   }
 
-  consumableSlotsEl.innerHTML = '';
+  consumableSlotsEl.replaceChildren();
   for (let i = 0; i < MAX_CONSUMABLES; i++) {
     const slot = document.createElement('div');
     const consumable = state.consumables[i];
@@ -198,7 +290,7 @@ function renderInventorySlots() {
 renderInventorySlots();
 
 const BLIND_LABELS = ['Small Blind', 'Big Blind', 'Boss Blind'] as const;
-const BLIND_BADGE_TEXT = ['SMALL<br/>BLIND', 'BIG<br/>BLIND', 'BOSS'] as const;
+const BLIND_BADGE_TEXT = [['SMALL', 'BLIND'], ['BIG', 'BLIND'], ['BOSS']] as const;
 const BLIND_KIND = ['small', 'big', 'boss'] as const;
 const BLIND_REWARD = ['$', '$$', '$$$$$'] as const;
 
@@ -252,7 +344,11 @@ function renderShopCardInventory<T extends JokerCard | ConsumableCard>(
 
     const copy = document.createElement('div');
     copy.className = 'shop-inventory-copy';
-    copy.innerHTML = `<strong>${card.name}</strong><span>${card.description}</span>`;
+    const copyName = document.createElement('strong');
+    copyName.textContent = card.name;
+    const copyDescription = document.createElement('span');
+    copyDescription.textContent = card.description;
+    copy.append(copyName, copyDescription);
     row.appendChild(copy);
 
     if (type === 'consumable') {
@@ -313,7 +409,7 @@ function renderShop() {
   shopRerollCostEl.textContent = `$${state.shop.rerollCost}`;
   btnShopReroll.disabled = state.money < state.shop.rerollCost;
 
-  shopOffersEl.innerHTML = '';
+  shopOffersEl.replaceChildren();
   state.shop.offers.forEach((offer, index) => {
     const card = document.createElement('article');
     const canBuy = state.canBuyOffer(offer.id);
@@ -349,9 +445,25 @@ function renderShop() {
     shopOffersEl.appendChild(card);
   });
 
-  shopInventoryEl.innerHTML = '';
-  shopInventoryEl.appendChild(renderShopCardInventory(state.jokers, MAX_JOKERS, 'joker'));
-  shopInventoryEl.appendChild(renderShopCardInventory(state.consumables, MAX_CONSUMABLES, 'consumable'));
+  shopInventoryEl.replaceChildren(
+    renderShopCardInventory(state.jokers, MAX_JOKERS, 'joker'),
+    renderShopCardInventory(state.consumables, MAX_CONSUMABLES, 'consumable'),
+  );
+}
+
+function setBlindBadgeText(el: HTMLElement, lines: readonly string[]) {
+  el.replaceChildren();
+  lines.forEach((line, index) => {
+    if (index > 0) el.appendChild(document.createElement('br'));
+    el.append(document.createTextNode(line));
+  });
+}
+
+function setAnteValue(value: number) {
+  const total = document.createElement('span');
+  total.className = 'counter-total';
+  total.textContent = '/8';
+  anteEl.replaceChildren(document.createTextNode(String(value)), total);
 }
 
 function updateHud() {
@@ -360,13 +472,13 @@ function updateHud() {
   blindName.textContent = BLIND_LABELS[idx];
   blindBadge.className = `blind-badge ${BLIND_KIND[idx]}`;
   const badgeText = blindBadge.querySelector('span');
-  if (badgeText) badgeText.innerHTML = BLIND_BADGE_TEXT[idx];
+  if (badgeText) setBlindBadgeText(badgeText, BLIND_BADGE_TEXT[idx]);
 
   blindTarget.textContent = state.target.toLocaleString();
   blindReward.textContent = BLIND_REWARD[idx];
   const shownRoundScore = isRoundScoreAnimating ? (frozenRoundScore ?? state.roundScore) : state.roundScore;
   roundScoreEl.textContent = shownRoundScore.toLocaleString();
-  anteEl.innerHTML = `${state.ante}<span class="counter-total">/8</span>`;
+  setAnteValue(state.ante);
   const roundNumber = (state.ante - 1) * 3 + state.blindIndex + 1;
   roundEl.textContent = String(roundNumber);
   moneyEl.textContent = `$${state.money}`;
@@ -505,7 +617,7 @@ function spawnCardScoreFloat(
   if (labels.length === 0) return;
 
   // Project card top in world space → screen pixels inside #canvas-host.
-  const worldPos = new THREE.Vector3();
+  const worldPos = sceneHandle.createVector3();
   obj.getWorldPosition(worldPos);
   worldPos.y += 1.1; // anchor above the card top edge
   const projected = worldPos.project(sceneHandle.camera);
@@ -514,13 +626,12 @@ function spawnCardScoreFloat(
   const y = ((1 - projected.y) / 2) * rect.height;
 
   labels.forEach((label, i) => {
-    const el = document.createElement('div');
+    const el = acquireScoreFloat(host);
     el.className = `card-score-float ${label.cls}`;
     el.textContent = label.text;
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
     el.style.opacity = '0';
-    host.appendChild(el);
 
     const delay = i * 0.08;
     const drift = 28 + i * 6;
@@ -548,7 +659,7 @@ function spawnCardScoreFloat(
       duration: 0.45,
       delay: delay + 0.7,
       ease: 'power1.in',
-      onComplete: () => el.remove(),
+      onComplete: () => releaseScoreFloat(el),
     });
   });
 }
@@ -566,7 +677,7 @@ function spawnSlotScoreFloat(
   const y = rect.top + rect.height * 0.25;
 
   labels.forEach((label, i) => {
-    const el = document.createElement('div');
+    const el = acquireScoreFloat(document.body);
     el.className = `card-score-float ${label.cls}`;
     el.textContent = label.text;
     el.style.position = 'fixed';
@@ -574,7 +685,6 @@ function spawnSlotScoreFloat(
     el.style.top = `${y}px`;
     el.style.opacity = '0';
     el.style.zIndex = '60';
-    document.body.appendChild(el);
 
     const delay = i * 0.08;
     const drift = 32 + i * 6;
@@ -589,7 +699,7 @@ function spawnSlotScoreFloat(
       duration: 0.45,
       delay: delay + 0.7,
       ease: 'power1.in',
-      onComplete: () => el.remove(),
+      onComplete: () => releaseScoreFloat(el),
     });
   });
 }
@@ -657,7 +767,7 @@ async function playSelected() {
 
   const playSlots = layoutPlay(playedCards.length);
   audio.play('whoosh');
-  const worldPos = new THREE.Vector3();
+  const worldPos = sceneHandle.createVector3();
   playedCards.forEach((card, i) => {
     const obj = objects.get(card.id);
     if (!obj) return;
@@ -738,11 +848,11 @@ async function playSelected() {
       gsap.delayedCall(delay, () => {
         obj.pulse(1.22, 0.4);
         obj.flash(0xffd24a, 0.5);
-        const worldPos = new THREE.Vector3();
+        const worldPos = sceneHandle.createVector3();
         obj.getWorldPosition(worldPos);
         sceneHandle.emitBurst(worldPos, {
           count: 14,
-          color: new THREE.Color('#ffd24a'),
+          color: sceneHandle.createColor('#ffd24a'),
           speed: 2.4,
           spread: 0.9,
           life: 1.0,
@@ -761,7 +871,7 @@ async function playSelected() {
         }
       });
     } else {
-      const material = obj.faceMesh.material as THREE.MeshStandardMaterial;
+      const material = obj.faceMesh.material as Material;
       material.transparent = true;
       gsap.to(material, { opacity: 0.5, duration: 0.2 });
     }
@@ -827,9 +937,7 @@ async function playSelected() {
       gsap.to(obj.position, { y: -6, duration: 0.5, ease: 'power2.in' });
       gsap.to(obj.rotation, { z: (Math.random() - 0.5) * 1.5, duration: 0.5 });
       gsap.delayedCall(0.55, () => {
-        sceneHandle.playGroup.remove(obj);
-        obj.dispose();
-        objects.delete(card.id);
+        releaseObject(card.id, obj);
       });
     }
     isAnimating = false;
@@ -858,9 +966,7 @@ async function discardSelected() {
     gsap.to(obj.position, { y: -5, x: obj.position.x + (Math.random() - 0.5) * 1.5, duration: 0.45, ease: 'power2.in' });
     gsap.to(obj.rotation, { z: (Math.random() - 0.5) * 1.2, duration: 0.45 });
     gsap.delayedCall(0.5, () => {
-      sceneHandle.handGroup.remove(obj);
-      obj.dispose();
-      objects.delete(card.id);
+      releaseObject(card.id, obj);
     });
   }
   state.discardSelected();
@@ -902,10 +1008,8 @@ function resetRun() {
   suppressEndOverlay = false;
   shopOverlay.classList.add('hidden');
   shopOverlay.style.opacity = '';
-  for (const [, obj] of objects) {
-    sceneHandle.handGroup.remove(obj);
-    sceneHandle.playGroup.remove(obj);
-    obj.dispose();
+  for (const [, obj] of [...objects]) {
+    releaseObject(obj.card.id, obj);
   }
   objects.clear();
   handOrder = [];
@@ -935,34 +1039,40 @@ btnShopNext.addEventListener('click', () => {
 });
 
 const muteBtn = maybe<HTMLButtonElement>('btn-mute');
+let unsubscribeMute: (() => void) | null = null;
 if (muteBtn) {
   const refreshMute = (muted: boolean) => {
     muteBtn.textContent = muted ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute SFX' : 'Mute SFX');
+    muteBtn.title = muted ? 'Unmute SFX' : 'Mute SFX';
   };
   refreshMute(audio.isMuted());
-  audio.onMutedChange(refreshMute);
+  unsubscribeMute = audio.onMutedChange(refreshMute);
 }
 
 const musicMuteBtn = maybe<HTMLButtonElement>('btn-music-mute');
+let unsubscribeMusicMute: (() => void) | null = null;
 if (musicMuteBtn) {
   const refreshMusicMute = (muted: boolean) => {
     musicMuteBtn.textContent = muted ? '🔇' : '🎵';
     musicMuteBtn.setAttribute('aria-label', muted ? 'Unmute Music' : 'Mute Music');
+    musicMuteBtn.title = muted ? 'Unmute Music' : 'Mute Music';
   };
   refreshMusicMute(audio.isMusicMuted());
   musicMuteBtn.addEventListener('click', () => audio.toggleMusicMute());
-  audio.onMusicMutedChange(refreshMusicMute);
+  unsubscribeMusicMute = audio.onMusicMutedChange(refreshMusicMute);
 }
 
-window.addEventListener('keydown', (event) => {
+const onKeyDown = (event: KeyboardEvent) => {
   const action = actionFromKeyboard(event);
   if (!action) return;
   event.preventDefault();
   dispatchAction(action);
-});
+};
+window.addEventListener('keydown', onKeyDown);
+window.addEventListener('resize', updateResponsiveHudVars);
 
-attachInteraction({
+const detachInteraction = attachInteraction({
   renderer: sceneHandle.renderer,
   camera: sceneHandle.camera,
   handGroup: sceneHandle.handGroup,
@@ -971,7 +1081,7 @@ attachInteraction({
   onReorder: (ids) => { handOrder = ids; },
 });
 
-state.subscribe(() => {
+const unsubscribeState = state.subscribe(() => {
   updateHud();
 });
 
@@ -1029,7 +1139,20 @@ window.__OPEN_POKER_TEST__ = {
     dispatchAction('restart_run');
   },
   dispose: () => {
+    detachInteraction();
+    unsubscribeState();
+    unsubscribeMute?.();
+    unsubscribeMusicMute?.();
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('resize', updateResponsiveHudVars);
     gsap.globalTimeline.clear();
+    for (const [, obj] of objects) disposeObject(obj);
+    objects.clear();
+    while (objectPool.length > 0) {
+      const obj = objectPool.pop();
+      if (obj) disposeObject(obj);
+    }
+    while (scoreFloatPool.length > 0) scoreFloatPool.pop()?.remove();
     sceneHandle.dispose();
     audio.dispose();
   },

@@ -22,7 +22,8 @@ class AudioManagerImpl {
   private master: GainNode | null = null;
   private sfxLimiter: DynamicsCompressorNode | null = null;
   private musicGain: GainNode | null = null;
-  private music: BackgroundMusic | null = null;
+  private music: { start: () => void; stop: () => void } | null = null;
+  private musicLoadPending = false;
   private voices = new Map<string, VoiceDef>();
   private unlocked = false;
   private muted = false;
@@ -105,10 +106,19 @@ class AudioManagerImpl {
     if (!ctx) return;
     if (ctx.state === 'suspended') void ctx.resume();
     this.unlocked = true;
-    if (!this.music && this.musicGain) {
-      this.music = new BackgroundMusic(ctx, this.musicGain);
-      this.music.start();
+    this.startMusicWhenReady(ctx);
+  }
+
+  private startMusicWhenReady(ctx: AudioContext) {
+    if (this.musicMuted || this.music || this.musicLoadPending || !this.musicGain) return;
+    this.musicLoadPending = true;
+    if (this.music || !this.musicGain || this.ctx !== ctx) {
+      this.musicLoadPending = false;
+      return;
     }
+    this.music = new BackgroundMusic(ctx, this.musicGain);
+    this.music.start();
+    this.musicLoadPending = false;
   }
 
   play(name: string, opts: SynthOpts = {}) {
@@ -182,6 +192,7 @@ class AudioManagerImpl {
     this.musicMuted = m;
     try { localStorage.setItem(MUSIC_MUTE_KEY, m ? '1' : '0'); } catch {}
     if (this.musicGain) this.musicGain.gain.value = m ? 0 : this.musicVolume;
+    if (!m && this.unlocked && this.ctx) this.startMusicWhenReady(this.ctx);
     for (const fn of this.musicMutedListeners) fn(m);
   }
 
@@ -205,6 +216,7 @@ class AudioManagerImpl {
     this.master = null;
     this.sfxLimiter = null;
     this.musicGain = null;
+    this.musicLoadPending = false;
     this.unlocked = false;
   }
 }

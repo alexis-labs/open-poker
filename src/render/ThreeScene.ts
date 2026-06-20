@@ -6,6 +6,12 @@ import gsap from 'gsap';
 import { CARD_W, CARD_H, CARD_T, tickCardGlow } from './CardObject';
 import { getBackTexture } from './cardTextures';
 import { ParticleSystem } from './Particles';
+import { assetUrl } from '../loading/assetPaths';
+import { BACKGROUND_IMAGE_PATH } from '../loading/assetManifest';
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
 
 export interface SceneHandle {
   scene: THREE.Scene;
@@ -17,6 +23,8 @@ export interface SceneHandle {
   setDeckCount: (n: number) => void;
   particles: ParticleSystem;
   emitBurst: (worldPos: THREE.Vector3, opts?: Parameters<ParticleSystem['emit']>[1]) => void;
+  createVector3: () => THREE.Vector3;
+  createColor: (value: THREE.ColorRepresentation) => THREE.Color;
   getMetrics: () => { frame: number; calls: number; triangles: number; points: number; lines: number };
   dispose: () => void;
   shake: (amount?: number, duration?: number) => void;
@@ -28,9 +36,11 @@ function buildBackground(): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uColorA: { value: new THREE.Color('#ffffff') },
-      uColorB: { value: new THREE.Color('#f6f1e8') },
-      uColorC: { value: new THREE.Color('#e4d4aa') },
+      uColorA: { value: new THREE.Color('#107052') },
+      uColorB: { value: new THREE.Color('#063329') },
+      uColorC: { value: new THREE.Color('#29a36d') },
+      uMap: { value: null },
+      uUseMap: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -45,6 +55,8 @@ function buildBackground(): THREE.Mesh {
       uniform vec3 uColorA;
       uniform vec3 uColorB;
       uniform vec3 uColorC;
+      uniform sampler2D uMap;
+      uniform float uUseMap;
       varying vec2 vUv;
 
       // Soft value-noise so the white field has a little table texture.
@@ -69,8 +81,11 @@ function buildBackground(): THREE.Mesh {
         n *= 0.4;
 
         vec3 col = mix(uColorA, uColorB, smoothstep(0.0, 1.35, r));
-        col = mix(col, uColorC, n * 0.055);
-        col *= 1.0 - smoothstep(0.82, 1.45, r) * 0.08;
+        col = mix(col, uColorC, n * 0.11);
+        col *= 1.0 - smoothstep(0.72, 1.35, r) * 0.22;
+
+        vec3 imageCol = texture2D(uMap, vUv).rgb;
+        col = mix(col, imageCol, uUseMap);
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -90,25 +105,39 @@ function buildBackground(): THREE.Mesh {
  * artefacts). When a file is found the procedural bg mesh is hidden.
  * Falls back silently if no file exists.
  */
-function buildImageBackground(scene: THREE.Scene, procBg: THREE.Mesh): void {
+function buildImageBackground(procBg: THREE.Mesh): { dispose: () => void } {
   const loader = new THREE.TextureLoader();
-  const exts = ['png', 'webp', 'jpg'];
-  let i = 0;
+  let backgroundTexture: THREE.Texture | null = null;
+  let disposed = false;
+  const material = procBg.material as THREE.ShaderMaterial;
   const tryNext = () => {
-    if (i >= exts.length) return;
-    const url = `/art/ui/background.${exts[i++]}`;
+    if (disposed) return;
+    const url = assetUrl(BACKGROUND_IMAGE_PATH);
     loader.load(
       url,
       (tex) => {
+        if (disposed) {
+          tex.dispose();
+          return;
+        }
         tex.colorSpace = THREE.SRGBColorSpace;
-        scene.background = tex;
-        procBg.visible = false; // hide fallback shader bg
+        backgroundTexture = tex;
+        material.uniforms.uMap.value = tex;
+        material.uniforms.uUseMap.value = 1;
       },
       undefined,
-      tryNext, // 404 / error → try next extension
+      () => undefined,
     );
   };
   tryNext();
+  return {
+    dispose: () => {
+      disposed = true;
+      material.uniforms.uMap.value = null;
+      material.uniforms.uUseMap.value = 0;
+      backgroundTexture?.dispose();
+    },
+  };
 }
 
 export function createScene(container: HTMLElement): SceneHandle {
@@ -129,7 +158,7 @@ export function createScene(container: HTMLElement): SceneHandle {
   scene.add(bg);
   // Image background — loads /art/ui/background.{png,webp,jpg,svg} if present.
   // On success: sets scene.background and hides the procedural mesh.
-  buildImageBackground(scene, bg);
+  const imageBackground = buildImageBackground(bg);
 
   // Lights
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -189,6 +218,28 @@ export function createScene(container: HTMLElement): SceneHandle {
   const emitBurst = (worldPos: THREE.Vector3, opts?: Parameters<ParticleSystem['emit']>[1]) => {
     particles.emit(worldPos, opts);
   };
+  const createVector3 = () => new THREE.Vector3();
+  const createColor = (value: THREE.ColorRepresentation) => new THREE.Color(value);
+
+  const applyResponsiveLayout = () => {
+    const w = Math.max(1, container.clientWidth);
+    const h = Math.max(1, container.clientHeight);
+    const compact = clamp(Math.min(w / 1440, h / 900), 0.78, 1);
+    const narrowBias = clamp((1920 - w) / 1920, 0, 0.5);
+    const handX = narrowBias * 1.15 + (1 - compact) * 0.35;
+    const handY = -0.9 + (1 - compact) * 1.35;
+    const playY = 0.4 + (1 - compact) * 0.28;
+    const deckX = 4.6 - (1 - compact) * 0.85;
+    const deckY = -1.75 + (1 - compact) * 0.45;
+
+    handGroup.position.set(handX, handY, 0);
+    handGroup.scale.setScalar(0.7 * compact);
+    playGroup.position.set(handX, playY, 0);
+    playGroup.scale.setScalar(0.78 * compact);
+    deckGroup.position.set(deckX, deckY, 0);
+    deckGroup.scale.setScalar(0.68 * compact);
+  };
+  applyResponsiveLayout();
 
   // Resize
   const onResize = () => {
@@ -196,6 +247,7 @@ export function createScene(container: HTMLElement): SceneHandle {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    applyResponsiveLayout();
   };
   window.addEventListener('resize', onResize);
 
@@ -232,6 +284,11 @@ export function createScene(container: HTMLElement): SceneHandle {
   const dispose = () => {
     cancelAnimationFrame(rafId);
     window.removeEventListener('resize', onResize);
+    imageBackground.dispose();
+    bg.geometry.dispose();
+    (bg.material as THREE.Material).dispose();
+    deckGeom.dispose();
+    deckMat.dispose();
     particles.dispose();
     renderer.dispose();
     renderer.domElement.remove();
@@ -245,7 +302,7 @@ export function createScene(container: HTMLElement): SceneHandle {
     lines: renderer.info.render.lines,
   });
 
-  return { scene, camera, renderer, handGroup, playGroup, deckGroup, setDeckCount, particles, emitBurst, getMetrics, dispose, shake };
+  return { scene, camera, renderer, handGroup, playGroup, deckGroup, setDeckCount, particles, emitBurst, createVector3, createColor, getMetrics, dispose, shake };
 }
 
 /** Compute hand-layout transforms — gentle fan, no overlap. */

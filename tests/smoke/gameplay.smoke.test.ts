@@ -18,6 +18,7 @@ type Snapshot = {
 
 test('smoke flow: boot, play, discard, overlays, screenshots', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByTestId('splash-screen')).toBeHidden({ timeout: 15_000 });
   await expect(page.getByTestId('btn-play')).toBeVisible();
   await expect(page.getByTestId('btn-discard')).toBeVisible();
 

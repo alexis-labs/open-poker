@@ -2,18 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>open-poker - Balatro-like</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap"
-    />
   </head>
   <body>
     <div id="app">
+      <div id="splash-screen" class="splash-screen" data-testid="splash-screen" aria-live="polite">
+        <div class="splash-inner">
+          <img class="splash-logo" src="./art/ui/open-poker-logo.png" alt="Open Poker" draggable="false" />
+          <div class="splash-load-row">
+            <span id="splash-status">Preparing deck</span>
+            <span id="splash-percent">0%</span>
+          </div>
+          <div class="splash-progress" role="progressbar" aria-label="Loading assets">
+            <span id="splash-progress-bar"></span>
+          </div>
+        </div>
+      </div>
+
       <div id="canvas-host"></div>
 
       <!-- TOP: jokers + consumables -->
